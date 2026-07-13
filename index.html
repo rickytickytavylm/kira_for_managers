@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Пульт менеджера · Кира</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css?v=4" />
+</head>
+<body>
+  <!-- ЭКРАН ВХОДА (каждый продавец входит своим ключом) -->
+  <div id="login" class="login" hidden>
+    <div class="login-card">
+      <div class="login-brand">Школа доктора Шурова</div>
+      <h1 class="login-title">Пульт менеджера</h1>
+      <p class="login-sub">Живые диалоги Киры. Войдите своим ключом продавца.</p>
+
+      <label class="field">
+        <span class="field-label">Ключ доступа</span>
+        <input id="loginToken" type="password" autocomplete="off"
+               placeholder="Ваш личный ключ" />
+      </label>
+
+      <details class="advanced">
+        <summary>Адрес сервера</summary>
+        <label class="field">
+          <span class="field-label">Backend URL</span>
+          <input id="loginBackend" type="text" spellcheck="false"
+                 placeholder="https://..." />
+        </label>
+      </details>
+
+      <button id="loginBtn" class="btn-primary">Войти</button>
+      <div id="loginError" class="login-error" hidden></div>
+    </div>
+  </div>
+
+  <!-- ОСНОВНОЙ ЭКРАН -->
+  <div id="app" class="app" hidden>
+    <!-- СПИСОК ДИАЛОГОВ -->
+    <aside id="side" class="side">
+      <div class="side-head">
+        <div class="side-head-l">
+          <div class="side-title">Диалоги</div>
+          <div id="meName" class="side-me"></div>
+        </div>
+        <div class="side-actions">
+          <button id="refreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">⟳</button>
+          <button id="logoutBtn" class="icon-btn" title="Выйти" aria-label="Выйти">⏻</button>
+        </div>
+      </div>
+      <div class="side-search">
+        <input id="searchInput" type="search" placeholder="Поиск: имя, @username, телефон…" />
+      </div>
+      <div class="side-filters">
+        <button class="chip-filter is-active" data-filter="all">Все</button>
+        <button class="chip-filter" data-filter="unassigned">Не разобранные</button>
+        <button class="chip-filter" data-filter="mine">На мне</button>
+        <button class="chip-filter" data-filter="waiting">Ждут ответа</button>
+      </div>
+      <div id="chatList" class="chat-list"></div>
+    </aside>
+
+    <!-- ОКНО ПЕРЕПИСКИ -->
+    <main id="main" class="main">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-emoji">💬</div>
+        <div class="empty-text">Выберите диалог слева</div>
+      </div>
+
+      <section id="conversation" class="conversation" hidden>
+        <header class="conv-head">
+          <button id="backBtn" class="icon-btn conv-back" aria-label="Назад">‹</button>
+          <div class="conv-who">
+            <div id="convName" class="conv-name">—</div>
+            <div id="convMeta" class="conv-meta">—</div>
+          </div>
+          <div class="conv-ctrl">
+            <span id="controlBadge" class="control-badge" hidden></span>
+            <button id="returnBtn" class="btn-ghost" hidden>Вернуть Кире</button>
+          </div>
+        </header>
+
+        <div id="scroll" class="scroll"></div>
+
+        <div class="composer">
+          <div id="managerHint" class="manager-hint" hidden>
+            Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге.
+          </div>
+          <div class="composer-row">
+            <textarea id="input" rows="1" placeholder="Сообщение клиенту…"></textarea>
+            <button id="sendBtn" class="btn-send" aria-label="Отправить">➤</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js?v=4"></script>
+  <script src="app.js?v=4"></script>
+</body>
+</html>
