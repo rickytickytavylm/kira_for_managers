@@ -92,7 +92,7 @@ body:has(.app:not([hidden])) .mesh-bg {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: calc(24px + var(--safe-top)) calc(20px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(20px + var(--safe-left));
+  padding: calc(28px + var(--safe-top)) calc(20px + var(--safe-right)) calc(28px + var(--safe-bottom)) calc(20px + var(--safe-left));
   overflow: hidden;
 }
 .login-hero {
@@ -121,48 +121,60 @@ body:has(.app:not([hidden])) .mesh-bg {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 45%, rgba(0, 0, 0, 0.82) 100%),
-    radial-gradient(ellipse 70% 55% at 50% 20%, rgba(10, 132, 255, 0.18), transparent 60%);
+    linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.42) 40%, rgba(0, 0, 0, 0.78) 100%);
   pointer-events: none;
 }
-.login-card {
+.login-stage {
   position: relative;
   z-index: 1;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  animation: login-card-in 0.55s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.login-hero-copy {
+  text-align: center;
+  padding: 0 8px;
+}
+.login-hero-title {
+  margin: 0;
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+  font-size: clamp(48px, 11vw, 72px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: #fff;
+  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+}
+.login-hero-sub {
+  margin: 14px 0 0;
+  font-family: var(--font);
+  font-size: clamp(16px, 3.6vw, 20px);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.92);
+  display: inline-block;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+  padding-bottom: 2px;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.login-card {
   width: 100%;
-  max-width: 420px;
-  background: rgba(22, 22, 24, 0.55);
+  background: rgba(18, 18, 20, 0.48);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 28px;
-  padding: 36px 28px;
+  padding: 28px 24px;
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.08) inset,
     0 28px 80px rgba(0, 0, 0, 0.45);
-  animation: login-card-in 0.55s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 @keyframes login-card-in {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.login-brand {
-  font-size: 13px;
-  font-weight: 600;
-  color: #7ec8ff;
-  letter-spacing: -0.01em;
-}
-.login-title {
-  font-size: clamp(30px, 6vw, 36px);
-  font-weight: 700;
-  margin-top: 8px;
-  letter-spacing: -0.045em;
-  line-height: 1.05;
-}
-.login-sub {
-  color: rgba(235, 235, 245, 0.72);
-  font-size: 15px;
-  margin: 10px 0 26px;
-  line-height: 1.45;
 }
 .field { display: block; margin-bottom: 16px; }
 .field-label {

@@ -115,14 +115,13 @@ function showLogin(msg) {
   $("app").hidden = true;
   $("login").hidden = false;
   $("loginToken").value = state.token || "";
-  $("loginBackend").value = state.backend || "";
   const err = $("loginError");
   if (msg) { err.textContent = msg; err.hidden = false; } else { err.hidden = true; }
 }
 
 async function doLogin() {
   const token = $("loginToken").value.trim();
-  const backend = $("loginBackend").value.trim() || DEFAULT_BACKEND;
+  const backend = DEFAULT_BACKEND;
   if (!token) { showLogin("Введите ключ доступа."); return; }
   state.token = token;
   state.backend = backend;
@@ -135,7 +134,7 @@ async function doLogin() {
     enterApp();
   } catch (e) {
     if (e.forbidden) showLogin("Неверный ключ доступа.");
-    else showLogin("Не удалось подключиться к серверу. Проверьте адрес.");
+    else showLogin("Не удалось подключиться к серверу.");
   }
 }
 
@@ -588,7 +587,7 @@ async function restoreSession() {
     enterApp();
   } catch (e) {
     clearTimeout(timer);
-    showLogin("Не удалось подключиться к серверу. Проверьте интернет или адрес.");
+    showLogin("Не удалось подключиться к серверу. Проверьте интернет.");
   }
 }
 

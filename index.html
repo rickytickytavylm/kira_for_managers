@@ -8,14 +8,17 @@
   <meta name="color-scheme" content="dark" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Пульт" />
+  <meta name="apple-mobile-web-app-title" content="Кира" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="description" content="Пульт менеджера — живые диалоги клиентов" />
-  <title>Пульт менеджера</title>
+  <meta name="description" content="Кира Ai — панель управления диалогами" />
+  <title>Кира Ai · Панель управления</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -29,31 +32,24 @@
       <div class="login-hero-shade"></div>
     </div>
 
-    <div class="login-card">
-      <div class="login-brand">Школа доктора Шурова</div>
-      <h1 class="login-title">Пульт менеджера</h1>
-      <p class="login-sub">Живые диалоги с клиентами. Войдите своим ключом продавца.</p>
+    <div class="login-stage">
+      <header class="login-hero-copy">
+        <h1 class="login-hero-title">Кира&nbsp;Ai</h1>
+        <p class="login-hero-sub">Панель управления</p>
+      </header>
 
-      <label class="field field-key">
-        <span class="field-label">Ключ доступа</span>
-        <div class="field-shell">
-          <svg class="ico ico-sm field-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input id="loginToken" type="password" autocomplete="current-password" placeholder="Ваш личный ключ" />
-        </div>
-      </label>
-
-      <details class="advanced">
-        <summary>Адрес сервера</summary>
-        <label class="field">
-          <span class="field-label">Backend URL</span>
+      <div class="login-card">
+        <label class="field field-key">
+          <span class="field-label">Ключ доступа</span>
           <div class="field-shell">
-            <input id="loginBackend" type="url" spellcheck="false" placeholder="https://..." autocomplete="off" />
+            <svg class="ico ico-sm field-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="loginToken" type="password" autocomplete="current-password" placeholder="Ваш личный ключ" />
           </div>
         </label>
-      </details>
 
-      <button id="loginBtn" class="btn-primary">Войти</button>
-      <div id="loginError" class="login-error" hidden></div>
+        <button id="loginBtn" class="btn-primary">Войти</button>
+        <div id="loginError" class="login-error" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -177,7 +173,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=12"></script>
-  <script src="app.js?v=12"></script>
+  <script src="config.js?v=13"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
