@@ -159,7 +159,7 @@ function renderList() {
   const box = $("chatList");
   const list = filteredUsers();
   if (!list.length) {
-    box.innerHTML = '<div style="padding:24px;color:var(--muted-2);text-align:center;font-size:14px;">Ничего не найдено</div>';
+    box.innerHTML = '<div class="list-empty">Ничего не найдено</div>';
     return;
   }
   box.innerHTML = list.map((u) => {
@@ -196,12 +196,24 @@ function renderList() {
 }
 
 /* ── Переписка ───────────────────────────────────────────────────────── */
+function setChatView(open) {
+  const main = $("main");
+  if (open) {
+    main.classList.add("is-chat");
+    $("emptyState").setAttribute("hidden", "");
+    $("conversation").removeAttribute("hidden");
+  } else {
+    main.classList.remove("is-chat");
+    $("emptyState").removeAttribute("hidden");
+    $("conversation").setAttribute("hidden", "");
+  }
+}
+
 async function openConversation(id) {
   state.currentId = id;
   state.currentMsgCount = 0;
   $("app").classList.add("viewing");
-  $("emptyState").hidden = true;
-  $("conversation").hidden = false;
+  setChatView(true);
   renderList();
   await loadConversation(true);
 }
@@ -342,6 +354,7 @@ function bindEvents() {
   $("backBtn").addEventListener("click", () => {
     $("app").classList.remove("viewing");
     state.currentId = null;
+    setChatView(false);
     renderList();
   });
 
