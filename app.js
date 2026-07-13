@@ -1168,6 +1168,50 @@ function renderProfile() {
   const waitF = stats.waiting / total;
   setRing($("profileRingMine"), mineF, 0);
   setRing($("profileRingWait"), waitF, mineF);
+
+  const pushBox = $("profilePush");
+  if (pushBox) {
+    const show = isSellerLike(state.role) && !!(state.pushEnabled || state.vapidPublicKey);
+    pushBox.hidden = !show;
+    const hint = $("profilePushHint");
+    if (hint) { hint.hidden = true; hint.textContent = ""; }
+    const btn = $("profilePushTestBtn");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Тест уведомлений";
+    }
+  }
+}
+
+async function onProfilePushTest() {
+  const btn = $("profilePushTestBtn");
+  const hint = $("profilePushHint");
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = "Отправка…";
+  if (hint) {
+    hint.hidden = false;
+    hint.classList.remove("is-error");
+    hint.textContent = "Проверяем подписку и отправляем тест…";
+  }
+  try {
+    await ensurePushSubscription();
+    await api("/admin/api/push/test", { method: "POST" });
+    localStorage.setItem(LS.pushOk, "1");
+    if (hint) {
+      hint.classList.remove("is-error");
+      hint.textContent = "Отправлено. Проверьте системное уведомление.";
+    }
+    btn.textContent = "Ещё раз";
+  } catch (e) {
+    if (hint) {
+      hint.classList.add("is-error");
+      hint.textContent = "Не удалось: " + (e.message || e);
+    }
+    btn.textContent = "Тест уведомлений";
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function openProfile() {
@@ -1203,6 +1247,7 @@ function bindEvents() {
   on("profileBtn", "click", openProfile);
   on("profileClose", "click", closeProfile);
   on("profileBackdrop", "click", closeProfile);
+  on("profilePushTestBtn", "click", onProfilePushTest);
   on("returnBtn", "click", returnToKira);
   on("sendBtn", "click", sendMessage);
   on("pushToggle", "change", onPushToggleChange);
