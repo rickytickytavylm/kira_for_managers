@@ -706,11 +706,17 @@ function parseSystemEvent(text) {
   const t = (text || "").trim();
   if (!t) return null;
 
-  let m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
+  let m = t.match(/^Решение Киры\s*[—\-]\s*менеджера(?::\s*(.+))?$/i);
+  if (m) return { type: "manager_join", name: (m[1] || "").trim() };
+
+  m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
   m = t.match(/^\[\s*менеджер\s+подключился\s+к\s+диалогу(?::\s*(.+?))?\s*\]$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
+
+  m = t.match(/^Кира вернулась в чат(?:\s*\(вернул:\s*(.+?)\))?$/i);
+  if (m) return { type: "kira_return", name: (m[1] || "").trim() };
 
   m = t.match(/^Вернулась Кира(?:\s*\(вернул:\s*(.+?)\))?$/i);
   if (m) return { type: "kira_return", name: (m[1] || "").trim() };
@@ -748,7 +754,7 @@ function renderMessages(msgs) {
       if (ev && ev.type === "manager_join") {
         return renderEventCard({
           type: "manager_join",
-          title: "Подключился менеджер",
+          title: "Решение Киры — менеджера",
           sub: ev.name || "менеджер",
           time,
         });
@@ -756,7 +762,7 @@ function renderMessages(msgs) {
       if (ev && ev.type === "kira_return") {
         return renderEventCard({
           type: "kira_return",
-          title: "Вернулась Кира",
+          title: "Кира вернулась в чат",
           sub: ev.name ? `Вернул: ${ev.name}` : "ИИ снова ведёт диалог",
           time,
         });

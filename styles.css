@@ -826,10 +826,24 @@ body:has(.dashboard:not([hidden])) .mesh-bg {
   background: var(--green-soft);
   color: var(--green);
   white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .control-badge.other {
   background: var(--fill-tertiary);
   color: var(--text-secondary);
+}
+.return-kira-btn {
+  color: #64d2ff;
+  border: 1px solid rgba(100, 210, 255, 0.3);
+  background: rgba(10, 132, 255, 0.16);
+  flex-shrink: 0;
+}
+.return-kira-btn[hidden] { display: none !important; }
+.return-kira-btn:hover {
+  background: rgba(10, 132, 255, 0.26);
+  border-color: rgba(100, 210, 255, 0.5);
 }
 .btn-ghost {
   border: none;
@@ -1390,8 +1404,9 @@ body.product-open { overflow: hidden; }
   .app:not(.viewing) .main { display: none; }
   .conv-back { display: grid; }
   .side-title { font-size: 28px; }
-  .conv-ctrl { flex-wrap: wrap; justify-content: flex-end; }
-  .control-badge, .btn-ghost { font-size: 13px; padding: 6px 12px; }
+  .conv-ctrl { flex-wrap: nowrap; justify-content: flex-end; gap: 6px; }
+  .control-badge { font-size: 12px; padding: 5px 8px; max-width: 96px; }
+  .btn-ghost { font-size: 13px; padding: 6px 12px; }
   .msg { max-width: 88%; font-size: 16px; }
   .login-card { padding: 28px 22px; }
   .side-head { padding-top: calc(10px + var(--safe-top)); }
