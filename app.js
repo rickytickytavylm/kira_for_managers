@@ -68,7 +68,8 @@ function applyWhoami(who) {
   state.role = (who && who.role) || "seller";
   state.isAdmin = !!(who && who.is_admin) || state.role === "admin";
   state.pushEnabled = !!(who && who.push_enabled);
-  state.vapidPublicKey = (who && who.vapid_public_key) || DEFAULT_VAPID;
+  const fromServer = (who && who.vapid_public_key) || "";
+  state.vapidPublicKey = isValidVapidPublicKey(fromServer) ? fromServer : DEFAULT_VAPID;
 }
 
 function isDashboardRole(role) {
@@ -152,12 +153,33 @@ function isStandalonePwa() {
 }
 
 function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const cleaned = String(base64String || "").trim().replace(/^["']|["']$/g, "").replace(/\s+/g, "");
+  const padding = "=".repeat((4 - (cleaned.length % 4)) % 4);
+  const base64 = (cleaned + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   const out = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
+}
+
+function isValidVapidPublicKey(key) {
+  try {
+    const bytes = urlBase64ToUint8Array(key);
+    // Uncompressed P-256 point: 0x04 + 32 + 32
+    return bytes.length === 65 && bytes[0] === 0x04;
+  } catch (_) {
+    return false;
+  }
+}
+
+function resolveVapidPublicKey() {
+  const candidates = [state.vapidPublicKey, DEFAULT_VAPID];
+  for (const key of candidates) {
+    if (key && isValidVapidPublicKey(key)) {
+      return String(key).trim().replace(/^["']|["']$/g, "").replace(/\s+/g, "");
+    }
+  }
+  return "";
 }
 
 /* ── Вход / выход ────────────────────────────────────────────────────── */
@@ -415,16 +437,18 @@ async function ensurePushSubscription() {
   if (permission !== "granted") {
     throw new Error("Разрешение на уведомления не выдано");
   }
-  const key = state.vapidPublicKey || DEFAULT_VAPID;
-  if (!key) throw new Error("VAPID-ключ не настроен");
+  const key = resolveVapidPublicKey();
+  if (!key) throw new Error("VAPID-ключ не настроен или повреждён. Проверьте VAPID_PUBLIC_KEY на сервере.");
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(key),
-    });
+  if (sub) {
+    try { await sub.unsubscribe(); } catch (_) {}
+    sub = null;
   }
+  sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(key),
+  });
   await api("/admin/api/push/subscribe", {
     method: "POST",
     body: {

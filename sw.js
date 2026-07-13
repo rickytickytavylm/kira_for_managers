@@ -1,5 +1,5 @@
 /* PWA: network-first для HTML/JS/CSS — иначе после деплоя чёрный экран из старого кэша. */
-const CACHE = "mc-v17";
+const CACHE = "mc-v18";
 const ASSETS = [
   "./",
   "./index.html",
