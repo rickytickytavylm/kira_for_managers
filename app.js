@@ -59,6 +59,32 @@ function initials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
+const AVATAR_PALETTE = [
+  ["#1a3347", "#0a84ff"],
+  ["#1a3d2e", "#30d158"],
+  ["#3d2e14", "#ff9f0a"],
+  ["#3d1f1a", "#ff6961"],
+  ["#2c2c2e", "#8e8e93"],
+  ["#1a3535", "#64d2ff"],
+  ["#2e2e1a", "#ffd60a"],
+  ["#1f2e1a", "#32d74b"],
+];
+
+function avatarHash(name) {
+  let h = 0;
+  const s = name || "?";
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function avatarHtml(name, { size = "", dot = "" } = {}) {
+  const init = initials(name);
+  const [a, b] = AVATAR_PALETTE[avatarHash(name) % AVATAR_PALETTE.length];
+  const cls = ["avatar", size && `avatar-${size}`].filter(Boolean).join(" ");
+  const dotHtml = dot ? `<span class="dot ${dot}"></span>` : "";
+  return `<div class="${cls}" style="--av-a:${a};--av-b:${b}"><span class="avatar-text">${esc(init)}</span>${dotHtml}</div>`;
+}
+
 function fmtTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -167,20 +193,21 @@ function renderList() {
     const owner = u.assigned_manager || "";
     const mine = owner && owner === state.me;
     const waiting = isWaiting(u);
-    let dot = "";
-    if (owner) dot = '<span class="dot manager"></span>';
-    else if (waiting) dot = '<span class="dot waiting"></span>';
+    let dotClass = "";
+    if (owner) dotClass = "manager";
+    else if (waiting) dotClass = "waiting";
     const uname = u.telegram_username ? "@" + u.telegram_username : (u.phone || "");
     let tag = "";
     if (mine) tag = '<span class="ci-tag manager">на мне</span>';
     else if (owner) tag = `<span class="ci-tag other">${esc(owner)}</span>`;
     else if (waiting) tag = '<span class="ci-tag">ждёт</span>';
     const last = u.last_message_at || u.updated_at;
+    const displayName = u.display_name || "Гость";
     return `
       <div class="chat-item${active}" data-id="${u.id}">
-        <div class="avatar">${esc(initials(u.display_name))}${dot}</div>
+        ${avatarHtml(displayName, { dot: dotClass })}
         <div class="ci-body">
-          <div class="ci-name">${esc(u.display_name || "Гость")}</div>
+          <div class="ci-name">${esc(displayName)}</div>
           <div class="ci-last">${esc(uname || u.current_stage || "")}</div>
         </div>
         <div class="ci-side">
@@ -232,7 +259,10 @@ async function loadConversation(scrollBottom) {
   const u = data.user || {};
   const msgs = data.messages || [];
 
-  $("convName").textContent = u.display_name || "Гость";
+  const displayName = u.display_name || "Гость";
+  $("convName").textContent = displayName;
+  const avWrap = $("convAvatarWrap");
+  if (avWrap) avWrap.innerHTML = avatarHtml(displayName, { size: "sm" });
   const metaBits = [];
   if (u.telegram_username) metaBits.push("@" + u.telegram_username);
   if (u.phone) metaBits.push(u.phone);
@@ -276,15 +306,21 @@ function renderMessages(msgs) {
   const sc = $("scroll");
   sc.innerHTML = msgs.map((m) => {
     const r = roleOf(m);
+    const body = (m.content || "").trim();
     if (r === "system") {
-      return `<div class="msg system">${esc(m.content)}</div>`;
+      if (!body) return "";
+      return `<div class="msg-system"><span>${esc(body)}</span></div>`;
     }
+    if (!body) return "";
     const who = r === "client" ? "Клиент" : (r === "manager" ? "Менеджер" : "Кира");
+    const time = fmtTime(m.created_at);
     return `
-      <div class="msg ${r}">
-        <div class="who">${who}</div>
-        ${esc(m.content)}
-        <span class="msg-time">${fmtTime(m.created_at)}</span>
+      <div class="msg msg--${r}">
+        <div class="msg-head">
+          <span class="msg-who">${who}</span>
+          <time class="msg-time">${time}</time>
+        </div>
+        <div class="msg-body">${esc(body)}</div>
       </div>`;
   }).join("");
 }

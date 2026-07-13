@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="theme-color" content="#08080a" />
+  <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -15,10 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -55,12 +52,19 @@
           <div id="meName" class="side-me"></div>
         </div>
         <div class="side-actions">
-          <button id="refreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">⟳</button>
-          <button id="logoutBtn" class="icon-btn" title="Выйти" aria-label="Выйти">⏻</button>
+          <button id="refreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </button>
+          <button id="logoutBtn" class="icon-btn" title="Выйти" aria-label="Выйти">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
         </div>
       </div>
       <div class="side-search">
-        <input id="searchInput" type="search" placeholder="Поиск: имя, @username, телефон…" enterkeyhint="search" />
+        <div class="search-wrap">
+          <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="searchInput" type="search" placeholder="Поиск" enterkeyhint="search" />
+        </div>
       </div>
       <div class="side-filters">
         <button class="chip-filter is-active" data-filter="all">Все</button>
@@ -73,16 +77,23 @@
 
     <main id="main" class="main">
       <div id="emptyState" class="empty-state">
-        <div class="empty-emoji">💬</div>
+        <div class="empty-icon">
+          <svg class="ico ico-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+        </div>
         <div class="empty-text">Выберите диалог слева</div>
       </div>
 
       <section id="conversation" class="conversation" hidden>
         <header class="conv-head">
-          <button id="backBtn" class="icon-btn conv-back" aria-label="Назад">‹</button>
+          <button id="backBtn" class="icon-btn conv-back" aria-label="Назад">
+            <svg class="ico ico-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
           <div class="conv-who">
-            <div id="convName" class="conv-name">—</div>
-            <div id="convMeta" class="conv-meta">—</div>
+            <div id="convAvatarWrap" class="conv-avatar-wrap"></div>
+            <div class="conv-who-text">
+              <div id="convName" class="conv-name">—</div>
+              <div id="convMeta" class="conv-meta">—</div>
+            </div>
           </div>
           <div class="conv-ctrl">
             <span id="controlBadge" class="control-badge" hidden></span>
@@ -98,14 +109,16 @@
           </div>
           <div class="composer-row">
             <textarea id="input" rows="1" placeholder="Сообщение клиенту…" enterkeyhint="send"></textarea>
-            <button id="sendBtn" class="btn-send" aria-label="Отправить">➤</button>
+            <button id="sendBtn" class="btn-send" aria-label="Отправить">
+              <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+            </button>
           </div>
         </div>
       </section>
     </main>
   </div>
 
-  <script src="config.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="config.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
