@@ -1,0 +1,26 @@
+{
+  "name": "Пульт менеджера · Шуров",
+  "short_name": "Пульт",
+  "description": "Живые диалоги клиентов. Пульт менеджеров школы доктора Шурова.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

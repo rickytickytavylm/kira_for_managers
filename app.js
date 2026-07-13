@@ -369,7 +369,15 @@ function bindEvents() {
 }
 
 /* ── Старт ───────────────────────────────────────────────────────────── */
+function registerPWA() {
+  if (!("serviceWorker" in navigator)) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  registerPWA();
   bindEvents();
   if (state.token) {
     // Восстанавливаем сессию: проверяем ключ и узнаём, кто вошёл.
