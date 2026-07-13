@@ -359,18 +359,25 @@ async function shouldShowPushGate() {
   if (state.role !== "seller") return false;
   if (!isStandalonePwa()) return false;
   if (!state.pushEnabled && !state.vapidPublicKey) return false;
-  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-    const sub = await getExistingPushSubscription();
-    if (sub) {
-      localStorage.setItem(LS.pushOk, "1");
-      return false;
-    }
+
+  const permission =
+    typeof Notification !== "undefined" ? Notification.permission : "denied";
+
+  // Если в системе отказали / сняли разрешение — снова требуем онбординг.
+  if (permission !== "granted") {
+    localStorage.removeItem(LS.pushOk);
+    return true;
   }
-  if (localStorage.getItem(LS.pushOk) === "1") {
-    const sub = await getExistingPushSubscription();
-    if (sub) return false;
+
+  const sub = await getExistingPushSubscription();
+  if (!sub) {
+    localStorage.removeItem(LS.pushOk);
+    return true;
   }
-  return true;
+
+  // Разрешение есть и подписка жива — пускаем без окна.
+  localStorage.setItem(LS.pushOk, "1");
+  return false;
 }
 
 function showPushGate() {
