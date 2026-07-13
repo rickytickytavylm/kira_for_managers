@@ -376,15 +376,37 @@ function parseSystemEvent(text) {
   const t = (text || "").trim();
   if (!t) return null;
 
-  // New format: "Подключился менеджер: Имя"
+  // "Подключился менеджер: Имя"
   let m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
-  // Legacy format: "[менеджер подключился к диалогу: Имя]"
+  // Legacy: "[менеджер подключился к диалогу: Имя]"
   m = t.match(/^\[\s*менеджер\s+подключился\s+к\s+диалогу(?::\s*(.+?))?\s*\]$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
+  // "Вернулась Кира" / "Вернулась Кира (вернул: Имя)"
+  m = t.match(/^Вернулась Кира(?:\s*\(вернул:\s*(.+?)\))?$/i);
+  if (m) return { type: "kira_return", name: (m[1] || "").trim() };
+
   return null;
+}
+
+function renderEventCard({ type, title, sub, time }) {
+  const isKira = type === "kira_return";
+  const ico = isKira
+    ? `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V7a4 4 0 0 1 4-4z"/><circle cx="9.5" cy="10.5" r="0.8" fill="currentColor"/><circle cx="14.5" cy="10.5" r="0.8" fill="currentColor"/></svg>`
+    : `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  return `
+    <div class="msg-event msg-event--${isKira ? "kira" : "join"}">
+      <div class="msg-event-card">
+        <div class="msg-event-ico" aria-hidden="true">${ico}</div>
+        <div class="msg-event-text">
+          <div class="msg-event-title">${esc(title)}</div>
+          <div class="msg-event-sub">${esc(sub)}</div>
+        </div>
+        <time class="msg-event-time">${time}</time>
+      </div>
+    </div>`;
 }
 
 function renderMessages(msgs) {
@@ -395,25 +417,22 @@ function renderMessages(msgs) {
     if (r === "system") {
       if (!body) return "";
       const ev = parseSystemEvent(body);
+      const time = fmtTime(m.created_at);
       if (ev && ev.type === "manager_join") {
-        const who = ev.name || "менеджер";
-        const time = fmtTime(m.created_at);
-        return `
-          <div class="msg-event msg-event--join">
-            <div class="msg-event-card">
-              <div class="msg-event-ico" aria-hidden="true">
-                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
-                </svg>
-              </div>
-              <div class="msg-event-text">
-                <div class="msg-event-title">Подключился менеджер</div>
-                <div class="msg-event-sub">${esc(who)}</div>
-              </div>
-              <time class="msg-event-time">${time}</time>
-            </div>
-          </div>`;
+        return renderEventCard({
+          type: "manager_join",
+          title: "Подключился менеджер",
+          sub: ev.name || "менеджер",
+          time,
+        });
+      }
+      if (ev && ev.type === "kira_return") {
+        return renderEventCard({
+          type: "kira_return",
+          title: "Вернулась Кира",
+          sub: ev.name ? `Вернул: ${ev.name}` : "ИИ снова ведёт диалог",
+          time,
+        });
       }
       return `<div class="msg-system"><span>${esc(body)}</span></div>`;
     }

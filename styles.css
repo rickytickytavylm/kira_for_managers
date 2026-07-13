@@ -819,6 +819,10 @@ body:has(.app:not([hidden])) .mesh-bg {
   display: grid;
   place-items: center;
 }
+.msg-event--kira .msg-event-ico {
+  background: rgba(100, 210, 255, 0.16);
+  color: var(--teal);
+}
 .msg-event-text { min-width: 0; }
 .msg-event-title {
   font-size: 13px;
