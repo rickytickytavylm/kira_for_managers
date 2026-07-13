@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=14" />
+  <link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -35,12 +35,12 @@
     </div>
 
     <div class="login-stage">
-      <header class="login-hero-copy">
+      <header class="login-hero-copy" id="loginHeroCopy">
         <h1 class="login-hero-title">Кира&nbsp;Ai</h1>
         <p class="login-hero-sub">Панель управления</p>
       </header>
 
-      <div class="login-card">
+      <div class="login-card" id="loginCard">
         <label class="field field-key">
           <span class="field-label">Ключ доступа</span>
           <div class="field-shell">
@@ -51,6 +51,17 @@
 
         <button id="loginBtn" class="btn-primary">Войти</button>
         <div id="loginError" class="login-error" hidden></div>
+      </div>
+
+      <div id="loginWelcome" class="login-welcome" hidden>
+        <div class="login-welcome-check" aria-hidden="true">
+          <svg viewBox="0 0 52 52" class="login-welcome-svg">
+            <circle class="login-welcome-circle" cx="26" cy="26" r="24" fill="none"/>
+            <path class="login-welcome-tick" fill="none" d="M14.5 27.2l7.2 7.2 15.8-16"/>
+          </svg>
+        </div>
+        <p class="login-welcome-label">Ключ принят</p>
+        <h2 id="welcomeName" class="login-welcome-name">Приветствую</h2>
       </div>
     </div>
   </div>
@@ -175,7 +186,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=14"></script>
-  <script src="app.js?v=14"></script>
+  <script src="config.js?v=15"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

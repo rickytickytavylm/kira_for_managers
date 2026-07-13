@@ -114,15 +114,58 @@ function showLogin(msg) {
   stopPolling();
   $("app").hidden = true;
   $("login").hidden = false;
+  $("login").classList.remove("is-welcome", "is-leaving");
+  const card = $("loginCard");
+  const copy = $("loginHeroCopy");
+  const welcome = $("loginWelcome");
+  if (card) card.hidden = false;
+  if (copy) copy.hidden = false;
+  if (welcome) welcome.hidden = true;
   $("loginToken").value = state.token || "";
+  $("loginBtn").disabled = false;
   const err = $("loginError");
   if (msg) { err.textContent = msg; err.hidden = false; } else { err.hidden = true; }
+}
+
+function firstName(full) {
+  const n = (full || "").trim();
+  if (!n) return "друг";
+  if (n === "Администратор") return "Администратор";
+  return n.split(/\s+/)[0];
+}
+
+function playWelcomeThenEnter() {
+  const name = firstName(state.me);
+  const card = $("loginCard");
+  const copy = $("loginHeroCopy");
+  const welcome = $("loginWelcome");
+  const welcomeName = $("welcomeName");
+  if (welcomeName) welcomeName.textContent = "Приветствую, " + name;
+  if (card) card.hidden = true;
+  if (copy) copy.hidden = true;
+  if (welcome) welcome.hidden = false;
+  $("login").classList.add("is-welcome");
+
+  // Перезапуск SVG-анимации
+  const svg = welcome && welcome.querySelector(".login-welcome-svg");
+  if (svg) {
+    const clone = svg.cloneNode(true);
+    svg.parentNode.replaceChild(clone, svg);
+  }
+
+  window.setTimeout(() => {
+    $("login").classList.add("is-leaving");
+    window.setTimeout(() => enterApp(), 420);
+  }, 2100);
 }
 
 async function doLogin() {
   const token = $("loginToken").value.trim();
   const backend = DEFAULT_BACKEND;
   if (!token) { showLogin("Введите ключ доступа."); return; }
+  const btn = $("loginBtn");
+  btn.disabled = true;
+  btn.textContent = "Проверка…";
   state.token = token;
   state.backend = backend;
   try {
@@ -131,8 +174,11 @@ async function doLogin() {
     state.isAdmin = !!(who && who.is_admin);
     localStorage.setItem(LS.token, token);
     localStorage.setItem(LS.backend, backend);
-    enterApp();
+    btn.textContent = "Войти";
+    playWelcomeThenEnter();
   } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Войти";
     if (e.forbidden) showLogin("Неверный ключ доступа.");
     else showLogin("Не удалось подключиться к серверу.");
   }

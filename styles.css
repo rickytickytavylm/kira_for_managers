@@ -174,7 +174,93 @@ body:has(.app:not([hidden])) .mesh-bg {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.08) inset,
     0 28px 80px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.35s ease, transform 0.35s ease;
 }
+.login-card[hidden],
+.login-hero-copy[hidden] { display: none !important; }
+
+/* Success welcome on same hero screen */
+.login-welcome {
+  width: 100%;
+  text-align: center;
+  padding: 12px 8px 8px;
+  animation: welcome-in 0.55s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.login-welcome[hidden] { display: none !important; }
+@keyframes welcome-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.login-welcome-check {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: rgba(48, 209, 88, 0.14);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 1px rgba(48, 209, 88, 0.25), 0 16px 40px rgba(48, 209, 88, 0.18);
+}
+.login-welcome-svg {
+  width: 52px;
+  height: 52px;
+}
+.login-welcome-circle {
+  stroke: #30d158;
+  stroke-width: 2.5;
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  animation: welcome-circle 0.6s ease-out forwards;
+}
+.login-welcome-tick {
+  stroke: #30d158;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: welcome-tick 0.35s 0.45s ease-out forwards;
+}
+@keyframes welcome-circle {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes welcome-tick {
+  to { stroke-dashoffset: 0; }
+}
+.login-welcome-label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(48, 209, 88, 0.95);
+}
+.login-welcome-name {
+  margin: 10px 0 0;
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+  font-size: clamp(34px, 8vw, 48px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: #fff;
+  text-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+  animation: welcome-name 0.55s 0.25s both cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes welcome-name {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.login.is-leaving {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  opacity: 0;
+  transform: scale(1.02);
+}
+.login.is-leaving .login-hero-img {
+  animation: none;
+  transform: scale(1.12);
+  transition: transform 0.5s ease;
+}
+
 @keyframes login-card-in {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -291,6 +377,11 @@ body:has(.app:not([hidden])) .mesh-bg {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   overflow: hidden;
+  animation: app-in 0.45s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes app-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Сайдбар ──────────────────────────────────────────────────────────── */
