@@ -13,12 +13,12 @@
   <meta name="description" content="Кира Ai — панель управления диалогами" />
   <title>Кира Ai · Панель управления</title>
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icons/icon.svg" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -63,6 +63,22 @@
         <p class="login-welcome-label">Ключ принят</p>
         <h2 id="welcomeName" class="login-welcome-name">Приветствую</h2>
       </div>
+
+      <div id="loginPush" class="login-push" hidden>
+        <div class="login-push-card">
+          <h2 class="login-push-title">Включите уведомления</h2>
+          <p class="login-push-sub">Так вы сразу узнаете, когда клиент напишет в закреплённый за вами диалог.</p>
+          <label class="push-toggle-row" for="pushToggle">
+            <span class="push-toggle-label">Push-уведомления</span>
+            <span class="push-switch">
+              <input id="pushToggle" type="checkbox" />
+              <span class="push-switch-ui" aria-hidden="true"></span>
+            </span>
+          </label>
+          <p id="pushHint" class="login-push-hint" hidden></p>
+          <button id="pushTestBtn" class="btn-primary" disabled>Тест</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -96,6 +112,10 @@
         <button class="chip-filter" data-filter="unassigned">Не разобранные</button>
         <button class="chip-filter" data-filter="mine">На мне</button>
         <button class="chip-filter" data-filter="waiting">Ждут ответа</button>
+      </div>
+      <div class="side-scope" id="sideScope" role="tablist" aria-label="Область диалогов">
+        <button type="button" class="scope-btn is-active" data-scope="all" role="tab" aria-selected="true">Все</button>
+        <button type="button" class="scope-btn" data-scope="mine" role="tab" aria-selected="false">Мои</button>
       </div>
       <div id="chatList" class="chat-list"></div>
     </aside>
@@ -132,6 +152,10 @@
           <div id="managerHint" class="manager-hint" hidden>
             Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге.
           </div>
+          <div id="productPicker" class="product-picker" hidden>
+            <div class="product-picker-label">Продукты</div>
+            <div id="productPickerTrack" class="product-picker-track" role="list"></div>
+          </div>
           <div class="composer-row">
             <textarea id="input" rows="1" placeholder="Сообщение клиенту…" enterkeyhint="send"></textarea>
             <button id="sendBtn" class="btn-send" aria-label="Отправить">
@@ -141,6 +165,48 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="dashboard" class="dashboard" hidden>
+    <header class="dash-head">
+      <div class="dash-head-l">
+        <div class="dash-brand">Кира&nbsp;Ai</div>
+        <div id="dashMe" class="dash-me"></div>
+      </div>
+      <div class="dash-actions">
+        <button id="dashRefreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <button id="dashLogoutBtn" class="icon-btn" title="Выйти" aria-label="Выйти">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="dash-periods" id="dashPeriods" role="tablist" aria-label="Период">
+      <button type="button" class="dash-period" data-period="today">Сегодня</button>
+      <button type="button" class="dash-period is-active" data-period="7d">7 дней</button>
+      <button type="button" class="dash-period" data-period="30d">30 дней</button>
+      <button type="button" class="dash-period" data-period="90d">90</button>
+      <button type="button" class="dash-period" data-period="all">Всё</button>
+    </div>
+
+    <div class="dash-scroll">
+      <section class="dash-section" id="dashRingsSection">
+        <h2 class="dash-section-title" id="dashRingsTitle">Метрики</h2>
+        <div id="dashRings" class="dash-rings"></div>
+      </section>
+
+      <section class="dash-section" id="dashSourcesSection">
+        <h2 class="dash-section-title">Источники лидов</h2>
+        <div id="dashSources" class="dash-sources"></div>
+      </section>
+
+      <section class="dash-section" id="dashManagersSection">
+        <h2 class="dash-section-title" id="dashManagersTitle">Менеджеры</h2>
+        <div id="dashManagers" class="dash-managers"></div>
+      </section>
+    </div>
   </div>
 
   <div id="profileSheet" class="profile-sheet" hidden>
@@ -186,7 +252,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script src="config.js?v=18"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

@@ -2,25 +2,37 @@
 
 /* ── Состояние и конфиг ──────────────────────────────────────────────── */
 const DEFAULT_BACKEND = (window.CONSOLE_CONFIG || {}).BACKEND_URL || "";
+const DEFAULT_VAPID = (window.CONSOLE_CONFIG || {}).VAPID_PUBLIC_KEY || "";
 const LS = {
   token: "mc_token",
   backend: "mc_backend",
+  pushOk: "mc_push_ok",
 };
 
 const state = {
   token: localStorage.getItem(LS.token) || "",
   backend: localStorage.getItem(LS.backend) || DEFAULT_BACKEND,
-  me: "",          // имя вошедшего продавца
-  isAdmin: false,  // супер-доступ (ADMIN_SECRET)
+  me: "",
+  role: "seller", // admin|seller|marketing|head
+  isAdmin: false,
+  pushEnabled: false,
+  vapidPublicKey: DEFAULT_VAPID,
   users: [],
   currentId: null,
   currentMsgCount: 0,
   filter: "all",
+  scope: "all", // all|mine — tumbler над списком
   q: "",
+  statsPeriod: "7d",
+  stats: null,
+  pushTested: false,
+  products: null,
+  productsLoading: false,
 };
 
 let listTimer = null;
 let convTimer = null;
+let dashTimer = null;
 
 /* ── Хелперы ─────────────────────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
@@ -49,6 +61,29 @@ async function api(path, { method = "GET", body } = {}) {
     throw new Error(detail);
   }
   return res.status === 204 ? null : res.json();
+}
+
+function applyWhoami(who) {
+  state.me = (who && who.name) || "";
+  state.role = (who && who.role) || "seller";
+  state.isAdmin = !!(who && who.is_admin) || state.role === "admin";
+  state.pushEnabled = !!(who && who.push_enabled);
+  state.vapidPublicKey = (who && who.vapid_public_key) || DEFAULT_VAPID;
+}
+
+function isDashboardRole(role) {
+  return role === "marketing" || role === "head";
+}
+
+function isSellerLike(role) {
+  return role === "seller" || role === "admin";
+}
+
+function roleSubtitle(role) {
+  if (role === "admin") return "Админ · все лиды";
+  if (role === "marketing") return "Маркетинг";
+  if (role === "head") return "Руководитель";
+  return "Менеджер";
 }
 
 function initials(name) {
@@ -109,18 +144,40 @@ function isWaiting(u) {
   return new Date(u.last_user_message_at) > new Date(u.last_assistant_message_at);
 }
 
+function isStandalonePwa() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
 /* ── Вход / выход ────────────────────────────────────────────────────── */
 function showLogin(msg) {
   stopPolling();
+  stopDashPolling();
   $("app").hidden = true;
+  const dash = $("dashboard");
+  if (dash) dash.hidden = true;
   $("login").hidden = false;
-  $("login").classList.remove("is-welcome", "is-leaving");
+  $("login").classList.remove("is-welcome", "is-leaving", "is-push");
   const card = $("loginCard");
   const copy = $("loginHeroCopy");
   const welcome = $("loginWelcome");
+  const push = $("loginPush");
   if (card) card.hidden = false;
   if (copy) copy.hidden = false;
   if (welcome) welcome.hidden = true;
+  if (push) push.hidden = true;
+  resetPushGateUi();
   $("loginToken").value = state.token || "";
   $("loginBtn").disabled = false;
   const err = $("loginError");
@@ -134,19 +191,38 @@ function firstName(full) {
   return n.split(/\s+/)[0];
 }
 
+function leaveLoginAndEnter() {
+  $("login").classList.add("is-leaving");
+  window.setTimeout(() => {
+    if (isDashboardRole(state.role)) enterDashboard();
+    else enterApp();
+  }, 420);
+}
+
+async function afterWelcome() {
+  const needPush = await shouldShowPushGate();
+  if (needPush) {
+    showPushGate();
+    return;
+  }
+  leaveLoginAndEnter();
+}
+
 function playWelcomeThenEnter() {
   const name = firstName(state.me);
   const card = $("loginCard");
   const copy = $("loginHeroCopy");
   const welcome = $("loginWelcome");
+  const push = $("loginPush");
   const welcomeName = $("welcomeName");
   if (welcomeName) welcomeName.textContent = "Приветствую, " + name;
   if (card) card.hidden = true;
   if (copy) copy.hidden = true;
+  if (push) push.hidden = true;
   if (welcome) welcome.hidden = false;
+  $("login").classList.remove("is-push");
   $("login").classList.add("is-welcome");
 
-  // Перезапуск SVG-анимации
   const svg = welcome && welcome.querySelector(".login-welcome-svg");
   if (svg) {
     const clone = svg.cloneNode(true);
@@ -154,8 +230,7 @@ function playWelcomeThenEnter() {
   }
 
   window.setTimeout(() => {
-    $("login").classList.add("is-leaving");
-    window.setTimeout(() => enterApp(), 420);
+    afterWelcome();
   }, 2100);
 }
 
@@ -170,8 +245,7 @@ async function doLogin() {
   state.backend = backend;
   try {
     const who = await api("/admin/api/whoami");
-    state.me = (who && who.name) || "";
-    state.isAdmin = !!(who && who.is_admin);
+    applyWhoami(who);
     localStorage.setItem(LS.token, token);
     localStorage.setItem(LS.backend, backend);
     btn.textContent = "Войти";
@@ -188,22 +262,222 @@ function logout() {
   localStorage.removeItem(LS.token);
   state.token = "";
   state.me = "";
+  state.role = "seller";
   state.isAdmin = false;
   state.currentId = null;
+  state.stats = null;
   showLogin();
 }
 
 function setMe() {
   const el = $("meName");
-  if (el) el.textContent = state.me ? (state.isAdmin ? state.me + " · все лиды" : state.me) : "";
+  if (!el) return;
+  if (!state.me) {
+    el.textContent = "";
+    return;
+  }
+  el.textContent = state.me + " · " + roleSubtitle(state.role);
+}
+
+function setDashMe() {
+  const el = $("dashMe");
+  if (!el) return;
+  if (!state.me) {
+    el.textContent = "";
+    return;
+  }
+  el.textContent = state.me + " · " + roleSubtitle(state.role);
 }
 
 function enterApp() {
   $("login").hidden = true;
+  const dash = $("dashboard");
+  if (dash) dash.hidden = true;
   $("app").hidden = false;
+  document.body.classList.remove("dash-mode");
+  document.body.classList.add("app-mode");
   setMe();
+  syncScopeUi();
   loadList();
   startPolling();
+}
+
+function enterDashboard() {
+  $("login").hidden = true;
+  $("app").hidden = true;
+  const dash = $("dashboard");
+  if (dash) dash.hidden = false;
+  document.body.classList.remove("app-mode");
+  document.body.classList.add("dash-mode");
+  location.hash = "dashboard";
+  setDashMe();
+  const ringsTitle = $("dashRingsTitle");
+  const mgrTitle = $("dashManagersTitle");
+  if (state.role === "head") {
+    if (ringsTitle) ringsTitle.textContent = "Обзор";
+    if (mgrTitle) mgrTitle.textContent = "Рейтинг менеджеров";
+  } else {
+    if (ringsTitle) ringsTitle.textContent = "Воронка и передачи";
+    if (mgrTitle) mgrTitle.textContent = "Менеджеры";
+  }
+  loadDashboard();
+  startDashPolling();
+}
+
+/* ── Push onboarding (PWA + sellers) ─────────────────────────────────── */
+function resetPushGateUi() {
+  state.pushTested = false;
+  const toggle = $("pushToggle");
+  const btn = $("pushTestBtn");
+  const hint = $("pushHint");
+  if (toggle) {
+    toggle.checked = false;
+    toggle.disabled = false;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Тест";
+  }
+  if (hint) {
+    hint.hidden = true;
+    hint.textContent = "";
+  }
+}
+
+async function getExistingPushSubscription() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    return await reg.pushManager.getSubscription();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function shouldShowPushGate() {
+  // Только продавцы + только установленное PWA (не вкладка браузера)
+  if (state.role !== "seller") return false;
+  if (!isStandalonePwa()) return false;
+  if (!state.pushEnabled && !state.vapidPublicKey) return false;
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    const sub = await getExistingPushSubscription();
+    if (sub) {
+      localStorage.setItem(LS.pushOk, "1");
+      return false;
+    }
+  }
+  if (localStorage.getItem(LS.pushOk) === "1") {
+    const sub = await getExistingPushSubscription();
+    if (sub) return false;
+  }
+  return true;
+}
+
+function showPushGate() {
+  const card = $("loginCard");
+  const copy = $("loginHeroCopy");
+  const welcome = $("loginWelcome");
+  const push = $("loginPush");
+  if (card) card.hidden = true;
+  if (copy) copy.hidden = true;
+  if (welcome) welcome.hidden = true;
+  if (push) push.hidden = false;
+  $("login").classList.remove("is-leaving");
+  $("login").classList.add("is-push");
+  resetPushGateUi();
+}
+
+function setPushHint(text, isError) {
+  const hint = $("pushHint");
+  if (!hint) return;
+  if (!text) {
+    hint.hidden = true;
+    hint.textContent = "";
+    return;
+  }
+  hint.hidden = false;
+  hint.textContent = text;
+  hint.classList.toggle("is-error", !!isError);
+}
+
+async function ensurePushSubscription() {
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    throw new Error("Уведомления не поддерживаются на этом устройстве");
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw new Error("Разрешение на уведомления не выдано");
+  }
+  const key = state.vapidPublicKey || DEFAULT_VAPID;
+  if (!key) throw new Error("VAPID-ключ не настроен");
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+  }
+  await api("/admin/api/push/subscribe", {
+    method: "POST",
+    body: {
+      subscription: sub.toJSON ? sub.toJSON() : sub,
+      userAgent: navigator.userAgent || "",
+    },
+  });
+  return sub;
+}
+
+async function onPushToggleChange() {
+  const toggle = $("pushToggle");
+  const btn = $("pushTestBtn");
+  if (!toggle || !btn) return;
+  if (!toggle.checked) {
+    btn.disabled = true;
+    btn.textContent = "Тест";
+    state.pushTested = false;
+    setPushHint("");
+    return;
+  }
+  toggle.disabled = true;
+  setPushHint("Подключаем уведомления…");
+  try {
+    await ensurePushSubscription();
+    setPushHint("Уведомления включены. Нажмите «Тест».");
+    btn.disabled = false;
+    btn.textContent = "Тест";
+    state.pushTested = false;
+  } catch (e) {
+    toggle.checked = false;
+    btn.disabled = true;
+    setPushHint(String(e.message || e), true);
+  } finally {
+    toggle.disabled = false;
+  }
+}
+
+async function onPushTestOrNext() {
+  const btn = $("pushTestBtn");
+  if (!btn || btn.disabled) return;
+  if (state.pushTested || btn.textContent === "Далее") {
+    localStorage.setItem(LS.pushOk, "1");
+    leaveLoginAndEnter();
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Отправка…";
+  setPushHint("Отправляем тестовое уведомление…");
+  try {
+    await api("/admin/api/push/test", { method: "POST" });
+    state.pushTested = true;
+    btn.textContent = "Далее";
+    btn.disabled = false;
+    setPushHint("Готово. Если пуш пришёл — жмите «Далее».");
+  } catch (e) {
+    btn.textContent = "Тест";
+    btn.disabled = false;
+    setPushHint("Не удалось отправить тест: " + (e.message || e), true);
+  }
 }
 
 /* ── Список диалогов ─────────────────────────────────────────────────── */
@@ -219,6 +493,9 @@ async function loadList() {
 
 function filteredUsers() {
   return state.users.filter((u) => {
+    if (state.scope === "mine") {
+      if (!(u.assigned_manager && u.assigned_manager === state.me)) return false;
+    }
     if (state.filter === "unassigned") return !u.assigned_manager;
     if (state.filter === "mine") return u.assigned_manager && u.assigned_manager === state.me;
     if (state.filter === "waiting") return isWaiting(u);
@@ -226,8 +503,60 @@ function filteredUsers() {
   });
 }
 
+function syncScopeUi() {
+  document.querySelectorAll(".scope-btn").forEach((b) => {
+    const on = b.dataset.scope === state.scope;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  // Синхронизация с чипом «На мне»
+  if (state.scope === "mine" && state.filter !== "mine") {
+    // scope сужает список; чипы остаются независимыми, кроме явного mine
+  }
+  if (state.filter === "mine") {
+    state.scope = "mine";
+    document.querySelectorAll(".scope-btn").forEach((b) => {
+      const on = b.dataset.scope === "mine";
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+}
+
+function setFilter(filter) {
+  state.filter = filter;
+  document.querySelectorAll(".chip-filter").forEach((b) => {
+    b.classList.toggle("is-active", b.dataset.filter === filter);
+  });
+  if (filter === "mine") {
+    state.scope = "mine";
+  } else if (filter === "all") {
+    // не сбрасываем scope автоматически — tumbler независим, но sync all chip ok
+  }
+  syncScopeUi();
+  renderList();
+}
+
+function setScope(scope) {
+  state.scope = scope;
+  if (scope === "mine") {
+    state.filter = "mine";
+    document.querySelectorAll(".chip-filter").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.filter === "mine");
+    });
+  } else if (state.filter === "mine") {
+    state.filter = "all";
+    document.querySelectorAll(".chip-filter").forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.filter === "all");
+    });
+  }
+  syncScopeUi();
+  renderList();
+}
+
 function renderList() {
   const box = $("chatList");
+  if (!box) return;
   const list = filteredUsers();
   if (!list.length) {
     box.innerHTML = '<div class="list-empty">Ничего не найдено</div>';
@@ -300,7 +629,7 @@ async function loadConversation(scrollBottom) {
     if (e.forbidden) logout();
     return;
   }
-  if (state.currentId !== id) return; // переключились, пока грузили
+  if (state.currentId !== id) return;
   const u = data.user || {};
   const msgs = data.messages || [];
 
@@ -331,7 +660,6 @@ async function loadConversation(scrollBottom) {
     $("controlBadge").textContent = "";
   }
   $("controlBadge").classList.toggle("other", !!(manager && owner && !mine));
-  // Вернуть Кире может владелец лида или администратор.
   $("returnBtn").hidden = !(manager && canReturn);
   const hint = $("managerHint");
   if (!canWrite) {
@@ -344,7 +672,10 @@ async function loadConversation(scrollBottom) {
     hint.hidden = true;
   }
 
-  // Блокируем ввод, если лид занят другим продавцом (админ — может).
+  const showProducts = !!(manager && canWrite);
+  setProductPickerVisible(showProducts);
+  if (showProducts) ensureProductsLoaded();
+
   const input = $("input");
   const sendBtn = $("sendBtn");
   if (input) {
@@ -353,7 +684,6 @@ async function loadConversation(scrollBottom) {
   }
   if (sendBtn) sendBtn.disabled = !canWrite;
 
-  // Перерисовываем ленту только если что-то изменилось (чтобы не дёргать при поллинге)
   if (msgs.length !== state.currentMsgCount) {
     renderMessages(msgs);
     state.currentMsgCount = msgs.length;
@@ -376,15 +706,12 @@ function parseSystemEvent(text) {
   const t = (text || "").trim();
   if (!t) return null;
 
-  // "Подключился менеджер: Имя"
   let m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
-  // Legacy: "[менеджер подключился к диалогу: Имя]"
   m = t.match(/^\[\s*менеджер\s+подключился\s+к\s+диалогу(?::\s*(.+?))?\s*\]$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
-  // "Вернулась Кира" / "Вернулась Кира (вернул: Имя)"
   m = t.match(/^Вернулась Кира(?:\s*\(вернул:\s*(.+?)\))?$/i);
   if (m) return { type: "kira_return", name: (m[1] || "").trim() };
 
@@ -451,6 +778,72 @@ function renderMessages(msgs) {
 }
 
 /* ── Отправка / возврат ──────────────────────────────────────────────── */
+async function ensureProductsLoaded() {
+  if (state.products || state.productsLoading) {
+    if (state.products) renderProductPicker();
+    return;
+  }
+  state.productsLoading = true;
+  try {
+    const data = await api("/admin/api/products");
+    state.products = (data && data.products) || [];
+    renderProductPicker();
+  } catch (_) {
+    state.products = [];
+    renderProductPicker();
+  } finally {
+    state.productsLoading = false;
+  }
+}
+
+function setProductPickerVisible(show) {
+  const wrap = $("productPicker");
+  if (!wrap) return;
+  wrap.hidden = !show;
+  if (show) renderProductPicker();
+}
+
+function productOfferText(p) {
+  const title = (p.title || "").trim();
+  const price = (p.price || "").trim();
+  const url = (p.url || "").trim();
+  const head = price ? `${title} — ${price}` : title;
+  return url ? `${head}\n${url}` : head;
+}
+
+function renderProductPicker() {
+  const track = $("productPickerTrack");
+  if (!track) return;
+  const list = state.products || [];
+  if (!list.length) {
+    track.innerHTML = state.productsLoading
+      ? `<div class="product-glass-meta" style="padding:8px 4px">Загрузка…</div>`
+      : "";
+    return;
+  }
+  const linkIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93"/><path d="M14 11a5 5 0 0 0-7.07 0L5.52 12.41a5 5 0 0 0 7.07 7.07L14 18.07"/></svg>`;
+  track.innerHTML = list.map((p) => `
+    <button type="button" class="product-glass" data-product-id="${esc(p.id)}" role="listitem" title="${esc(p.title)}">
+      <span class="product-glass-title">${esc(p.title)}</span>
+      <span class="product-glass-meta">${esc(p.price || "")}</span>
+      <span class="product-glass-link">${linkIco}ссылка</span>
+    </button>
+  `).join("");
+}
+
+function insertProductOffer(productId) {
+  const list = state.products || [];
+  const p = list.find((x) => x.id === productId);
+  if (!p) return;
+  const input = $("input");
+  if (!input || input.disabled) return;
+  const offer = productOfferText(p);
+  const cur = (input.value || "").trim();
+  input.value = cur ? `${cur}\n\n${offer}` : offer;
+  autoGrow();
+  input.focus();
+}
+
 async function sendMessage() {
   const input = $("input");
   if (!input || input.disabled) return;
@@ -494,6 +887,177 @@ async function returnToKira() {
   }
 }
 
+/* ── Дашборд ─────────────────────────────────────────────────────────── */
+const RING_R = 42;
+const RING_C_DASH = 2 * Math.PI * RING_R;
+
+function ringColor(i) {
+  const colors = ["#0a84ff", "#30d158", "#ff9f0a", "#64d2ff", "#bf5af2", "#ff453a", "#ffd60a"];
+  return colors[i % colors.length];
+}
+
+function pickRings(rings) {
+  if (!rings) return [];
+  if (state.role === "marketing") {
+    return [
+      { key: "leads", accent: 0 },
+      { key: "kira_handoffs", accent: 1 },
+      { key: "phone", accent: 2 },
+      { key: "takeovers", accent: 3 },
+    ].map((x) => ({ ...rings[x.key], key: x.key, accent: x.accent })).filter((r) => r && r.label);
+  }
+  if (state.role === "head") {
+    return [
+      { key: "leads", accent: 0 },
+      { key: "taken_now", accent: 1 },
+      { key: "takeovers", accent: 2 },
+      { key: "waiting", accent: 5 },
+    ].map((x) => ({ ...rings[x.key], key: x.key, accent: x.accent })).filter((r) => r && r.label);
+  }
+  return Object.keys(rings).slice(0, 4).map((key, i) => ({ ...rings[key], key, accent: i }));
+}
+
+function ringPct(ring) {
+  if (!ring) return 0;
+  if (typeof ring.pct === "number") return Math.max(0, Math.min(100, ring.pct)) / 100;
+  const max = Math.max(ring.max || ring.value || 1, 1);
+  return Math.max(0, Math.min(1, (ring.value || 0) / max));
+}
+
+function renderDashRings(data) {
+  const box = $("dashRings");
+  if (!box) return;
+  const items = pickRings(data.rings || {});
+  box.innerHTML = items.map((r, i) => {
+    const pct = ringPct(r);
+    const color = ringColor(r.accent != null ? r.accent : i);
+    const val = r.value != null ? r.value : 0;
+    const sub = typeof r.pct === "number" ? r.pct + "%" : "";
+    return `
+      <div class="metric-ring" data-pct="${pct}">
+        <svg class="metric-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="metric-ring-track" cx="50" cy="50" r="${RING_R}" fill="none"/>
+          <circle class="metric-ring-arc" cx="50" cy="50" r="${RING_R}" fill="none"
+            stroke="${color}"
+            stroke-dasharray="${RING_C_DASH}"
+            stroke-dashoffset="${RING_C_DASH}"
+            style="--ring-target:${RING_C_DASH * (1 - pct)}"/>
+        </svg>
+        <div class="metric-ring-core">
+          <div class="metric-ring-n">${esc(String(val))}</div>
+          ${sub ? `<div class="metric-ring-pct">${esc(sub)}</div>` : ""}
+        </div>
+        <div class="metric-ring-label">${esc(r.label || "")}</div>
+      </div>`;
+  }).join("");
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      box.querySelectorAll(".metric-ring-arc").forEach((el) => {
+        el.style.strokeDashoffset = el.style.getPropertyValue("--ring-target") || "0";
+      });
+    });
+  });
+}
+
+function renderDashSources(data) {
+  const box = $("dashSources");
+  const section = $("dashSourcesSection");
+  if (!box) return;
+  const sources = data.sources || [];
+  if (section) {
+    section.classList.toggle("is-emphasized", state.role === "marketing");
+  }
+  if (!sources.length) {
+    box.innerHTML = '<div class="dash-empty">Нет данных за период</div>';
+    return;
+  }
+  const max = Math.max(...sources.map((s) => s.count || 0), 1);
+  box.innerHTML = sources.map((s, i) => {
+    const w = Math.max(4, Math.round(((s.count || 0) / max) * 100));
+    return `
+      <div class="source-row" style="--i:${i}">
+        <div class="source-rank">${i + 1}</div>
+        <div class="source-body">
+          <div class="source-top">
+            <span class="source-name">${esc(s.name || "—")}</span>
+            <span class="source-meta">${s.count || 0} · ${s.pct != null ? s.pct : 0}%</span>
+          </div>
+          <div class="source-bar"><span style="width:${w}%"></span></div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function renderDashManagers(data) {
+  const box = $("dashManagers");
+  const section = $("dashManagersSection");
+  if (!box) return;
+  const managers = data.managers || [];
+  if (section) {
+    section.classList.toggle("is-emphasized", state.role === "head");
+    if (state.role === "head") section.classList.add("is-first-priority");
+    else section.classList.remove("is-first-priority");
+  }
+  if (!managers.length) {
+    box.innerHTML = '<div class="dash-empty">Менеджеров пока нет</div>';
+    return;
+  }
+  const maxActive = Math.max(...managers.map((m) => m.active || 0), 1);
+  box.innerHTML = `
+    <div class="mgr-table">
+      <div class="mgr-row mgr-head">
+        <span></span>
+        <span>Имя</span>
+        <span>Активные</span>
+        <span>Забрали</span>
+      </div>
+      ${managers.map((m, i) => {
+        const w = Math.max(6, Math.round(((m.active || 0) / maxActive) * 100));
+        return `
+          <div class="mgr-row" style="--i:${i}">
+            <span class="mgr-rank">${i + 1}</span>
+            <span class="mgr-name">${esc(m.name || "—")}
+              <span class="mgr-mini"><i style="width:${w}%"></i></span>
+            </span>
+            <span class="mgr-n">${m.active || 0}</span>
+            <span class="mgr-n muted">${m.takeovers || 0}</span>
+          </div>`;
+      }).join("")}
+    </div>`;
+}
+
+async function loadDashboard() {
+  try {
+    const data = await api("/admin/api/stats?period=" + encodeURIComponent(state.statsPeriod));
+    state.stats = data;
+    renderDashRings(data);
+    renderDashSources(data);
+    renderDashManagers(data);
+
+    // head: managers section first visually via CSS order
+    const scroll = document.querySelector(".dash-scroll");
+    if (scroll) {
+      scroll.classList.toggle("dash-head-layout", state.role === "head");
+      scroll.classList.toggle("dash-marketing-layout", state.role === "marketing");
+    }
+  } catch (e) {
+    if (e.forbidden) logout();
+    else {
+      const rings = $("dashRings");
+      if (rings) rings.innerHTML = '<div class="dash-empty">Не удалось загрузить статистику</div>';
+    }
+  }
+}
+
+function setStatsPeriod(period) {
+  state.statsPeriod = period;
+  document.querySelectorAll(".dash-period").forEach((b) => {
+    b.classList.toggle("is-active", b.dataset.period === period);
+  });
+  loadDashboard();
+}
+
 /* ── Поллинг ─────────────────────────────────────────────────────────── */
 function startPolling() {
   stopPolling();
@@ -504,6 +1068,14 @@ function stopPolling() {
   if (listTimer) clearInterval(listTimer);
   if (convTimer) clearInterval(convTimer);
   listTimer = convTimer = null;
+}
+function startDashPolling() {
+  stopDashPolling();
+  dashTimer = setInterval(loadDashboard, 30000);
+}
+function stopDashPolling() {
+  if (dashTimer) clearInterval(dashTimer);
+  dashTimer = null;
 }
 
 /* ── Профиль ─────────────────────────────────────────────────────────── */
@@ -533,7 +1105,7 @@ function renderProfile() {
   const stats = calcStats();
   const name = state.me || "Менеджер";
   $("profileHi").textContent = "Привет, " + name;
-  $("profileRole").textContent = state.isAdmin ? "Администратор · все лиды" : "Менеджер";
+  $("profileRole").textContent = roleSubtitle(state.role);
   $("statMine").textContent = String(stats.mine);
   $("statWaiting").textContent = String(stats.waiting);
   $("statFree").textContent = String(stats.free);
@@ -563,6 +1135,7 @@ function closeProfile() {
 /* ── UI-мелочи ───────────────────────────────────────────────────────── */
 function autoGrow() {
   const t = $("input");
+  if (!t) return;
   t.style.height = "auto";
   t.style.height = Math.min(t.scrollHeight, 140) + "px";
 }
@@ -575,12 +1148,16 @@ function bindEvents() {
   on("loginBtn", "click", doLogin);
   on("loginToken", "keydown", (e) => { if (e.key === "Enter") doLogin(); });
   on("logoutBtn", "click", logout);
+  on("dashLogoutBtn", "click", logout);
+  on("dashRefreshBtn", "click", loadDashboard);
   on("refreshBtn", "click", () => { loadList(); loadConversation(false); });
   on("profileBtn", "click", openProfile);
   on("profileClose", "click", closeProfile);
   on("profileBackdrop", "click", closeProfile);
   on("returnBtn", "click", returnToKira);
   on("sendBtn", "click", sendMessage);
+  on("pushToggle", "change", onPushToggleChange);
+  on("pushTestBtn", "click", onPushTestOrNext);
   on("backBtn", "click", () => {
     $("app").classList.remove("viewing");
     state.currentId = null;
@@ -607,20 +1184,32 @@ function bindEvents() {
   }
 
   document.querySelectorAll(".chip-filter").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".chip-filter").forEach((b) => b.classList.remove("is-active"));
-      btn.classList.add("is-active");
-      state.filter = btn.dataset.filter;
-      renderList();
-    });
+    btn.addEventListener("click", () => setFilter(btn.dataset.filter));
   });
+
+  document.querySelectorAll(".scope-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setScope(btn.dataset.scope));
+  });
+
+  document.querySelectorAll(".dash-period").forEach((btn) => {
+    btn.addEventListener("click", () => setStatsPeriod(btn.dataset.period));
+  });
+
+  const productTrack = $("productPickerTrack");
+  if (productTrack) {
+    productTrack.addEventListener("click", (e) => {
+      const btn = e.target.closest(".product-glass");
+      if (!btn) return;
+      insertProductOffer(btn.dataset.productId);
+    });
+  }
 }
 
 /* ── Старт ───────────────────────────────────────────────────────────── */
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=7").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=12").catch(() => {});
   });
 }
 
@@ -647,9 +1236,9 @@ async function restoreSession() {
       return;
     }
     const who = await res.json();
-    state.me = (who && who.name) || "";
-    state.isAdmin = !!(who && who.is_admin);
-    enterApp();
+    applyWhoami(who);
+    // Без welcome-анимации при restore, но push-gate для продавцов в PWA — да
+    await afterWelcome();
   } catch (e) {
     clearTimeout(timer);
     showLogin("Не удалось подключиться к серверу. Проверьте интернет.");

@@ -1,5 +1,5 @@
 /* PWA: network-first для HTML/JS/CSS — иначе после деплоя чёрный экран из старого кэша. */
-const CACHE = "mc-v11";
+const CACHE = "mc-v13";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,6 +8,9 @@ const ASSETS = [
   "./config.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png",
   "./assets/background.webp",
   "./assets/background-mob.webp",
 ];
@@ -54,5 +57,45 @@ self.addEventListener("fetch", (e) => {
       }
       return res;
     }).catch(() => cached))
+  );
+});
+
+self.addEventListener("push", (e) => {
+  let data = { title: "Кира Ai", body: "Новое сообщение", url: "./" };
+  try {
+    if (e.data) data = Object.assign(data, e.data.json());
+  } catch (_) {
+    try {
+      data.body = e.data ? e.data.text() : data.body;
+    } catch (__) {}
+  }
+  const title = data.title || "Кира Ai";
+  const opts = {
+    body: data.body || "",
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    tag: data.tag || "kira-push",
+    data: { url: data.url || "./" },
+    renotify: true,
+  };
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || "./";
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client) {
+            try { client.navigate(target); } catch (_) {}
+          }
+          return;
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(target);
+    })
   );
 });
