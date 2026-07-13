@@ -73,6 +73,10 @@ input, textarea, button { font-family: inherit; }
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  background: var(--bg);
+}
+.app ~ .mesh-bg,
+body:has(.app:not([hidden])) .mesh-bg {
   background:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(10, 132, 255, 0.14), transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 100%, rgba(100, 210, 255, 0.08), transparent 50%),
@@ -81,7 +85,7 @@ input, textarea, button { font-family: inherit; }
 
 .login[hidden], .app[hidden], [hidden] { display: none !important; }
 
-/* ── Вход ─────────────────────────────────────────────────────────────── */
+/* ── Вход: full-bleed hero ───────────────────────────────────────────── */
 .login {
   position: relative;
   z-index: 1;
@@ -89,35 +93,75 @@ input, textarea, button { font-family: inherit; }
   display: grid;
   place-items: center;
   padding: calc(24px + var(--safe-top)) calc(20px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(20px + var(--safe-left));
+  overflow: hidden;
+}
+.login-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+.login-hero picture,
+.login-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transform: scale(1.04);
+  animation: login-ken 18s ease-in-out infinite alternate;
+}
+@keyframes login-ken {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(-1.5%, -1%, 0); }
+}
+.login-hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 45%, rgba(0, 0, 0, 0.82) 100%),
+    radial-gradient(ellipse 70% 55% at 50% 20%, rgba(10, 132, 255, 0.18), transparent 60%);
+  pointer-events: none;
 }
 .login-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 400px;
-  background: var(--glass);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  max-width: 420px;
+  background: rgba(22, 22, 24, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
   padding: 36px 28px;
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 28px 80px rgba(0, 0, 0, 0.45);
+  animation: login-card-in 0.55s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .login-brand {
   font-size: 13px;
   font-weight: 600;
-  color: var(--blue);
+  color: #7ec8ff;
   letter-spacing: -0.01em;
 }
 .login-title {
-  font-size: clamp(28px, 5vw, 34px);
+  font-size: clamp(30px, 6vw, 36px);
   font-weight: 700;
   margin-top: 8px;
-  letter-spacing: -0.04em;
-  line-height: 1.08;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
 }
 .login-sub {
-  color: var(--text-secondary);
+  color: rgba(235, 235, 245, 0.72);
   font-size: 15px;
-  margin: 10px 0 24px;
+  margin: 10px 0 26px;
   line-height: 1.45;
 }
 .field { display: block; margin-bottom: 16px; }
@@ -125,50 +169,103 @@ input, textarea, button { font-family: inherit; }
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: rgba(235, 235, 245, 0.55);
   margin-bottom: 8px;
 }
+.field-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 2px 4px 2px 14px;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.field-shell:focus-within {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(10, 132, 255, 0.65);
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.22);
+}
+.field-ico {
+  color: rgba(235, 235, 245, 0.45);
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+.field-shell input,
 .field input {
   width: 100%;
-  background: var(--fill-tertiary);
-  border: none;
-  border-radius: 12px;
-  padding: 14px 16px;
-  color: var(--text);
+  background: transparent !important;
+  border: none !important;
+  border-radius: 14px;
+  padding: 14px 12px 14px 0;
+  color: #fff !important;
   font-size: 17px;
+  letter-spacing: -0.01em;
   outline: none;
-  transition: box-shadow 0.2s;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  caret-color: var(--blue);
 }
-.field input::placeholder { color: var(--text-muted); }
-.field input:focus { box-shadow: var(--ring); }
+.field-shell input { padding-left: 0; }
+.field-shell:not(:has(.field-ico)) input { padding-left: 12px; }
+.field input::placeholder,
+.field-shell input::placeholder { color: rgba(235, 235, 245, 0.35); }
+/* Убираем жёлтый autofill Chrome */
+.field-shell input:-webkit-autofill,
+.field-shell input:-webkit-autofill:hover,
+.field-shell input:-webkit-autofill:focus,
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff !important;
+  caret-color: var(--blue);
+  transition: background-color 99999s ease-in-out 0s;
+  box-shadow: 0 0 0 1000px rgba(28, 28, 30, 0.92) inset !important;
+  border-radius: 14px;
+}
 .advanced { margin-bottom: 18px; }
 .advanced summary {
   cursor: pointer;
-  color: var(--blue);
+  color: #7ec8ff;
   font-size: 15px;
   padding: 6px 0;
   user-select: none;
 }
 .btn-primary {
   width: 100%;
-  background: var(--blue);
+  background: linear-gradient(180deg, #1a90ff 0%, #0a84ff 100%);
   color: #fff;
   border: none;
-  border-radius: 14px;
-  padding: 15px;
+  border-radius: 16px;
+  padding: 16px;
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
   cursor: pointer;
-  transition: transform 0.12s, opacity 0.15s;
+  box-shadow: 0 10px 28px rgba(10, 132, 255, 0.35);
+  transition: transform 0.12s, opacity 0.15s, box-shadow 0.2s;
 }
-.btn-primary:hover { opacity: 0.92; }
+.btn-primary:hover {
+  opacity: 0.96;
+  box-shadow: 0 14px 34px rgba(10, 132, 255, 0.42);
+}
 .btn-primary:active { transform: scale(0.98); }
 .login-error {
   margin-top: 14px;
-  color: var(--red);
+  color: #ff6961;
   font-size: 15px;
   text-align: center;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+    border-radius: 24px;
+    max-width: 100%;
+  }
+  .login-title { font-size: 28px; }
 }
 
 /* ── Каркас ───────────────────────────────────────────────────────────── */
