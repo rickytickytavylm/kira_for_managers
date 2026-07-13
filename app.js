@@ -779,18 +779,13 @@ function renderMessages(msgs) {
 
 /* ── Отправка / возврат ──────────────────────────────────────────────── */
 async function ensureProductsLoaded() {
-  if (state.products || state.productsLoading) {
-    if (state.products) renderProductPicker();
-    return;
-  }
+  if (state.products || state.productsLoading) return;
   state.productsLoading = true;
   try {
     const data = await api("/admin/api/products");
     state.products = (data && data.products) || [];
-    renderProductPicker();
   } catch (_) {
     state.products = [];
-    renderProductPicker();
   } finally {
     state.productsLoading = false;
   }
@@ -800,7 +795,11 @@ function setProductPickerVisible(show) {
   const wrap = $("productPicker");
   if (!wrap) return;
   wrap.hidden = !show;
-  if (show) renderProductPicker();
+  if (!show) closeProductSheet();
+}
+
+function productCopyText(p) {
+  return ((p && p.url) || "").trim() || productOfferText(p);
 }
 
 function productOfferText(p) {
@@ -811,37 +810,81 @@ function productOfferText(p) {
   return url ? `${head}\n${url}` : head;
 }
 
-function renderProductPicker() {
-  const track = $("productPickerTrack");
-  if (!track) return;
+function renderProductSheetList() {
+  const listEl = $("productSheetList");
+  if (!listEl) return;
   const list = state.products || [];
-  if (!list.length) {
-    track.innerHTML = state.productsLoading
-      ? `<div class="product-glass-meta" style="padding:8px 4px">Загрузка…</div>`
-      : "";
+  if (state.productsLoading && !list.length) {
+    listEl.innerHTML = `<div class="product-sheet-empty">Загрузка…</div>`;
     return;
   }
-  const linkIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93"/><path d="M14 11a5 5 0 0 0-7.07 0L5.52 12.41a5 5 0 0 0 7.07 7.07L14 18.07"/></svg>`;
-  track.innerHTML = list.map((p) => `
-    <button type="button" class="product-glass" data-product-id="${esc(p.id)}" role="listitem" title="${esc(p.title)}">
-      <span class="product-glass-title">${esc(p.title)}</span>
-      <span class="product-glass-meta">${esc(p.price || "")}</span>
-      <span class="product-glass-link">${linkIco}ссылка</span>
-    </button>
+  if (!list.length) {
+    listEl.innerHTML = `<div class="product-sheet-empty">Продукты пока недоступны</div>`;
+    return;
+  }
+  const copyIco = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
+  listEl.innerHTML = list.map((p) => `
+    <div class="product-row" role="listitem" data-product-id="${esc(p.id)}">
+      <div class="product-row-main">
+        <div class="product-row-title">${esc(p.title)}</div>
+        <div class="product-row-meta">${esc(p.price || "")}</div>
+      </div>
+      <button type="button" class="product-copy-btn" data-copy-id="${esc(p.id)}" aria-label="Скопировать ссылку">
+        ${copyIco}<span>Копировать</span>
+      </button>
+      <div class="product-row-url" title="${esc(p.url || "")}">${esc(p.url || "")}</div>
+    </div>
   `).join("");
 }
 
-function insertProductOffer(productId) {
+async function openProductSheet() {
+  await ensureProductsLoaded();
+  renderProductSheetList();
+  const sheet = $("productSheet");
+  if (!sheet) return;
+  sheet.hidden = false;
+  document.body.classList.add("product-open");
+}
+
+function closeProductSheet() {
+  const sheet = $("productSheet");
+  if (!sheet) return;
+  sheet.hidden = true;
+  document.body.classList.remove("product-open");
+}
+
+async function copyProductLink(productId, btn) {
   const list = state.products || [];
   const p = list.find((x) => x.id === productId);
   if (!p) return;
-  const input = $("input");
-  if (!input || input.disabled) return;
-  const offer = productOfferText(p);
-  const cur = (input.value || "").trim();
-  input.value = cur ? `${cur}\n\n${offer}` : offer;
-  autoGrow();
-  input.focus();
+  const text = productCopyText(p);
+  if (!text) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    if (btn) {
+      const label = btn.querySelector("span");
+      btn.classList.add("is-copied");
+      if (label) label.textContent = "Скопировано";
+      window.setTimeout(() => {
+        btn.classList.remove("is-copied");
+        if (label) label.textContent = "Копировать";
+      }, 1400);
+    }
+  } catch (_) {
+    alert("Не удалось скопировать. Ссылка: " + text);
+  }
 }
 
 async function sendMessage() {
@@ -1161,6 +1204,7 @@ function bindEvents() {
   on("backBtn", "click", () => {
     $("app").classList.remove("viewing");
     state.currentId = null;
+    closeProductSheet();
     setChatView(false);
     renderList();
   });
@@ -1195,12 +1239,16 @@ function bindEvents() {
     btn.addEventListener("click", () => setStatsPeriod(btn.dataset.period));
   });
 
-  const productTrack = $("productPickerTrack");
-  if (productTrack) {
-    productTrack.addEventListener("click", (e) => {
-      const btn = e.target.closest(".product-glass");
+  on("productLinksBtn", "click", () => { openProductSheet(); });
+  on("productClose", "click", closeProductSheet);
+  on("productBackdrop", "click", closeProductSheet);
+
+  const productList = $("productSheetList");
+  if (productList) {
+    productList.addEventListener("click", (e) => {
+      const btn = e.target.closest(".product-copy-btn");
       if (!btn) return;
-      insertProductOffer(btn.dataset.productId);
+      copyProductLink(btn.dataset.copyId, btn);
     });
   }
 }
