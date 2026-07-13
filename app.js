@@ -504,16 +504,20 @@ function autoGrow() {
 }
 
 function bindEvents() {
-  $("loginBtn").addEventListener("click", doLogin);
-  $("loginToken").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
-  $("logoutBtn").addEventListener("click", logout);
-  $("refreshBtn").addEventListener("click", () => { loadList(); loadConversation(false); });
-  $("profileBtn").addEventListener("click", openProfile);
-  $("profileClose").addEventListener("click", closeProfile);
-  $("profileBackdrop").addEventListener("click", closeProfile);
-  $("returnBtn").addEventListener("click", returnToKira);
-  $("sendBtn").addEventListener("click", sendMessage);
-  $("backBtn").addEventListener("click", () => {
+  const on = (id, event, fn) => {
+    const el = $(id);
+    if (el) el.addEventListener(event, fn);
+  };
+  on("loginBtn", "click", doLogin);
+  on("loginToken", "keydown", (e) => { if (e.key === "Enter") doLogin(); });
+  on("logoutBtn", "click", logout);
+  on("refreshBtn", "click", () => { loadList(); loadConversation(false); });
+  on("profileBtn", "click", openProfile);
+  on("profileClose", "click", closeProfile);
+  on("profileBackdrop", "click", closeProfile);
+  on("returnBtn", "click", returnToKira);
+  on("sendBtn", "click", sendMessage);
+  on("backBtn", "click", () => {
     $("app").classList.remove("viewing");
     state.currentId = null;
     setChatView(false);
@@ -521,17 +525,22 @@ function bindEvents() {
   });
 
   const input = $("input");
-  input.addEventListener("input", autoGrow);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
+  if (input) {
+    input.addEventListener("input", autoGrow);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+  }
 
   let searchDebounce = null;
-  $("searchInput").addEventListener("input", (e) => {
-    state.q = e.target.value.trim();
-    clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(loadList, 300);
-  });
+  const search = $("searchInput");
+  if (search) {
+    search.addEventListener("input", (e) => {
+      state.q = e.target.value.trim();
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(loadList, 300);
+    });
+  }
 
   document.querySelectorAll(".chip-filter").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -547,26 +556,50 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=7").catch(() => {});
   });
 }
 
+async function restoreSession() {
+  const err = $("loginError");
+  if (err) {
+    err.textContent = "Подключение…";
+    err.hidden = false;
+  }
+  const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(() => { try { ctrl && ctrl.abort(); } catch (e) {} }, 8000);
+  try {
+    const res = await fetch(backendBase() + "/admin/api/whoami", {
+      headers: { "X-Admin-Token": state.token },
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+    clearTimeout(timer);
+    if (res.status === 403) {
+      showLogin("Ключ больше не подходит, войдите снова.");
+      return;
+    }
+    if (!res.ok) {
+      showLogin("Сервер временно недоступен. Попробуйте ещё раз.");
+      return;
+    }
+    const who = await res.json();
+    state.me = (who && who.name) || "";
+    state.isAdmin = !!(who && who.is_admin);
+    enterApp();
+  } catch (e) {
+    clearTimeout(timer);
+    showLogin("Не удалось подключиться к серверу. Проверьте интернет или адрес.");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  registerPWA();
-  bindEvents();
-  if (state.token) {
-    // Восстанавливаем сессию: проверяем ключ и узнаём, кто вошёл.
-    (async () => {
-      try {
-        const who = await api("/admin/api/whoami");
-        state.me = (who && who.name) || "";
-        state.isAdmin = !!(who && who.is_admin);
-        enterApp();
-      } catch (e) {
-        showLogin(e.forbidden ? "Ключ больше не подходит, войдите снова." : "");
-      }
-    })();
-  } else {
+  try {
+    registerPWA();
+    bindEvents();
     showLogin();
+    if (state.token) restoreSession();
+  } catch (e) {
+    console.error(e);
+    try { showLogin("Ошибка интерфейса. Обновите страницу."); } catch (e2) {}
   }
 });

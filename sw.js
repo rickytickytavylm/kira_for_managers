@@ -1,5 +1,5 @@
-/* PWA: кэш статики пульта (офлайн — оболочка, API требует сеть). */
-const CACHE = "mc-v6";
+/* PWA: network-first для HTML/JS/CSS — иначе после деплоя чёрный экран из старого кэша. */
+const CACHE = "mc-v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,17 +27,30 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   if (url.origin !== self.location.origin) return;
 
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const net = fetch(e.request)
+  const isShell = /\.(js|css|html|webmanifest)$/i.test(url.pathname) || url.pathname.endsWith("/") || url.pathname.endsWith("/kira_for_managers");
+
+  if (isShell) {
+    e.respondWith(
+      fetch(e.request)
         .then((res) => {
-          if (res.ok && url.pathname.match(/\.(js|css|html|svg|webmanifest)$/)) {
-            caches.open(CACHE).then((c) => c.put(e.request, res.clone()));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
           }
           return res;
         })
-        .catch(() => cached);
-      return cached || net;
-    })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(e.request).then((cached) => cached || fetch(e.request).then((res) => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy));
+      }
+      return res;
+    }).catch(() => cached))
   );
 });
