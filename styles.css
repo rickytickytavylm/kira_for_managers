@@ -1239,6 +1239,7 @@ body:has(.dashboard:not([hidden])) .mesh-bg {
 
 /* ── Профиль (sheet + Apple Watch ring) ──────────────────────────────── */
 body.profile-open { overflow: hidden; }
+body.product-open { overflow: hidden; }
 .profile-sheet {
   position: fixed;
   inset: 0;
