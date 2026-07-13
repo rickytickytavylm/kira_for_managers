@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icons/icon.svg" />
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -52,6 +52,9 @@
           <div id="meName" class="side-me"></div>
         </div>
         <div class="side-actions">
+          <button id="profileBtn" class="icon-btn" title="Профиль" aria-label="Профиль">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 19a6.5 6.5 0 0 1 13 0"/></svg>
+          </button>
           <button id="refreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
           </button>
@@ -118,7 +121,50 @@
     </main>
   </div>
 
-  <script src="config.js?v=9"></script>
-  <script src="app.js?v=9"></script>
+  <div id="profileSheet" class="profile-sheet" hidden>
+    <button id="profileBackdrop" class="profile-backdrop" type="button" aria-label="Закрыть"></button>
+    <div class="profile-panel" role="dialog" aria-modal="true" aria-labelledby="profileHi">
+      <div class="profile-grab" aria-hidden="true"></div>
+      <button id="profileClose" class="icon-btn profile-close" aria-label="Закрыть">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+
+      <div class="profile-ring-wrap">
+        <svg class="profile-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="profile-ring-track" cx="60" cy="60" r="52"/>
+          <circle id="profileRingWait" class="profile-ring-arc profile-ring-wait" cx="60" cy="60" r="52"/>
+          <circle id="profileRingMine" class="profile-ring-arc profile-ring-mine" cx="60" cy="60" r="52"/>
+        </svg>
+        <div id="profileAvatar" class="profile-avatar"></div>
+      </div>
+
+      <h2 id="profileHi" class="profile-hi">Привет</h2>
+      <p id="profileRole" class="profile-role">Менеджер</p>
+
+      <div class="profile-stats">
+        <div class="profile-stat">
+          <div id="statMine" class="profile-stat-n">0</div>
+          <div class="profile-stat-l">На мне</div>
+        </div>
+        <div class="profile-stat">
+          <div id="statWaiting" class="profile-stat-n">0</div>
+          <div class="profile-stat-l">Ждут</div>
+        </div>
+        <div class="profile-stat">
+          <div id="statFree" class="profile-stat-n">0</div>
+          <div class="profile-stat-l">Свободные</div>
+        </div>
+        <div class="profile-stat">
+          <div id="statAll" class="profile-stat-n">0</div>
+          <div class="profile-stat-l">Всего</div>
+        </div>
+      </div>
+
+      <p class="profile-note">Статистика считается по живым лидам: «На мне» — закреплённые за вами, «Ждут» — клиенты без ответа, «Свободные» — без менеджера.</p>
+    </div>
+  </div>
+
+  <script src="config.js?v=10"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* PWA: кэш статики пульта (офлайн — оболочка, API требует сеть). */
-const CACHE = "mc-v5";
+const CACHE = "mc-v6";
 const ASSETS = [
   "./",
   "./index.html",

@@ -199,7 +199,7 @@ function renderList() {
     const uname = u.telegram_username ? "@" + u.telegram_username : (u.phone || "");
     let tag = "";
     if (mine) tag = '<span class="ci-tag manager">на мне</span>';
-    else if (owner) tag = `<span class="ci-tag other">${esc(owner)}</span>`;
+    else if (owner) tag = `<span class="ci-tag other" title="${esc(owner)}">${esc(owner)}</span>`;
     else if (waiting) tag = '<span class="ci-tag">ждёт</span>';
     const last = u.last_message_at || u.updated_at;
     const displayName = u.display_name || "Гость";
@@ -272,16 +272,41 @@ async function loadConversation(scrollBottom) {
   const manager = u.chat_control === "manager";
   const owner = u.assigned_manager || "";
   const mine = owner && owner === state.me;
-  $("controlBadge").hidden = !manager;
-  $("controlBadge").textContent = mine || !owner ? "Чат ведёте вы" : "Ведёт: " + owner;
+  const canControl = state.isAdmin || !owner || mine;
+  const canReturn = state.isAdmin || mine;
+  const canWrite = canControl;
+  $("controlBadge").hidden = !(manager || owner);
+  if (owner && !canControl) {
+    $("controlBadge").textContent = "Ведёт: " + owner;
+  } else if (manager && canControl) {
+    $("controlBadge").textContent = "Чат ведёте вы";
+  } else if (owner && mine) {
+    $("controlBadge").textContent = "Чат ведёте вы";
+  } else {
+    $("controlBadge").textContent = "";
+  }
   $("controlBadge").classList.toggle("other", !!(manager && owner && !mine));
   // Вернуть Кире может владелец лида или администратор.
-  $("returnBtn").hidden = !(manager && (mine || !owner || state.isAdmin));
+  $("returnBtn").hidden = !(manager && canReturn);
   const hint = $("managerHint");
-  hint.hidden = !manager;
-  hint.textContent = mine || !owner
-    ? "Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге."
-    : `Чат ведёт ${owner}. Если напишете — лид перейдёт к вам.`;
+  if (!canWrite) {
+    hint.hidden = false;
+    hint.textContent = `Лид закреплён за менеджером: ${owner}. У вас нет доступа к этому чату.`;
+  } else if (manager) {
+    hint.hidden = false;
+    hint.textContent = "Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге.";
+  } else {
+    hint.hidden = true;
+  }
+
+  // Блокируем ввод, если лид занят другим продавцом (админ — может).
+  const input = $("input");
+  const sendBtn = $("sendBtn");
+  if (input) {
+    input.disabled = !canWrite;
+    input.placeholder = canWrite ? "Сообщение клиенту…" : "Лид занят другим менеджером";
+  }
+  if (sendBtn) sendBtn.disabled = !canWrite;
 
   // Перерисовываем ленту только если что-то изменилось (чтобы не дёргать при поллинге)
   if (msgs.length !== state.currentMsgCount) {
@@ -302,6 +327,21 @@ function roleOf(m) {
   return "kira";
 }
 
+function parseSystemEvent(text) {
+  const t = (text || "").trim();
+  if (!t) return null;
+
+  // New format: "Подключился менеджер: Имя"
+  let m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
+  if (m) return { type: "manager_join", name: (m[1] || "").trim() };
+
+  // Legacy format: "[менеджер подключился к диалогу: Имя]"
+  m = t.match(/^\[\s*менеджер\s+подключился\s+к\s+диалогу(?::\s*(.+?))?\s*\]$/i);
+  if (m) return { type: "manager_join", name: (m[1] || "").trim() };
+
+  return null;
+}
+
 function renderMessages(msgs) {
   const sc = $("scroll");
   sc.innerHTML = msgs.map((m) => {
@@ -309,6 +349,27 @@ function renderMessages(msgs) {
     const body = (m.content || "").trim();
     if (r === "system") {
       if (!body) return "";
+      const ev = parseSystemEvent(body);
+      if (ev && ev.type === "manager_join") {
+        const who = ev.name || "менеджер";
+        const time = fmtTime(m.created_at);
+        return `
+          <div class="msg-event msg-event--join">
+            <div class="msg-event-card">
+              <div class="msg-event-ico" aria-hidden="true">
+                <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <div class="msg-event-text">
+                <div class="msg-event-title">Подключился менеджер</div>
+                <div class="msg-event-sub">${esc(who)}</div>
+              </div>
+              <time class="msg-event-time">${time}</time>
+            </div>
+          </div>`;
+      }
       return `<div class="msg-system"><span>${esc(body)}</span></div>`;
     }
     if (!body) return "";
@@ -328,7 +389,8 @@ function renderMessages(msgs) {
 /* ── Отправка / возврат ──────────────────────────────────────────────── */
 async function sendMessage() {
   const input = $("input");
-  const text = input.value.trim();
+  if (!input || input.disabled) return;
+  const text = (input.value || "").trim();
   if (!text || !state.currentId) return;
   const btn = $("sendBtn");
   btn.disabled = true;
@@ -342,10 +404,17 @@ async function sendMessage() {
     await loadConversation(true);
     loadList();
   } catch (e) {
-    alert("Не удалось отправить: " + e.message);
+    const msg = String(e.message || "");
+    if (/owned by/i.test(msg)) {
+      alert("Этот лид уже забрал другой менеджер. Вам сюда писать нельзя.");
+      await loadConversation(false);
+      loadList();
+    } else {
+      alert("Не удалось отправить: " + msg);
+    }
   } finally {
-    btn.disabled = false;
-    input.focus();
+    if (!input.disabled) btn.disabled = false;
+    if (!input.disabled) input.focus();
   }
 }
 
@@ -373,6 +442,60 @@ function stopPolling() {
   listTimer = convTimer = null;
 }
 
+/* ── Профиль ─────────────────────────────────────────────────────────── */
+const RING_C = 2 * Math.PI * 52;
+
+function calcStats() {
+  const users = state.users || [];
+  let mine = 0, waiting = 0, free = 0;
+  for (const u of users) {
+    const owner = u.assigned_manager || "";
+    if (owner && owner === state.me) mine += 1;
+    if (!owner) free += 1;
+    if (isWaiting(u)) waiting += 1;
+  }
+  return { mine, waiting, free, all: users.length };
+}
+
+function setRing(el, fraction, offsetStart) {
+  if (!el) return;
+  const pct = Math.max(0, Math.min(1, fraction || 0));
+  const len = RING_C * pct;
+  el.style.strokeDasharray = `${len} ${RING_C}`;
+  el.style.strokeDashoffset = String(-(RING_C * (offsetStart || 0)));
+}
+
+function renderProfile() {
+  const stats = calcStats();
+  const name = state.me || "Менеджер";
+  $("profileHi").textContent = "Привет, " + name;
+  $("profileRole").textContent = state.isAdmin ? "Администратор · все лиды" : "Менеджер";
+  $("statMine").textContent = String(stats.mine);
+  $("statWaiting").textContent = String(stats.waiting);
+  $("statFree").textContent = String(stats.free);
+  $("statAll").textContent = String(stats.all);
+
+  const av = $("profileAvatar");
+  if (av) av.innerHTML = avatarHtml(name, { size: "lg" });
+
+  const total = Math.max(stats.all, 1);
+  const mineF = stats.mine / total;
+  const waitF = stats.waiting / total;
+  setRing($("profileRingMine"), mineF, 0);
+  setRing($("profileRingWait"), waitF, mineF);
+}
+
+function openProfile() {
+  renderProfile();
+  $("profileSheet").hidden = false;
+  document.body.classList.add("profile-open");
+}
+
+function closeProfile() {
+  $("profileSheet").hidden = true;
+  document.body.classList.remove("profile-open");
+}
+
 /* ── UI-мелочи ───────────────────────────────────────────────────────── */
 function autoGrow() {
   const t = $("input");
@@ -385,6 +508,9 @@ function bindEvents() {
   $("loginToken").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
   $("logoutBtn").addEventListener("click", logout);
   $("refreshBtn").addEventListener("click", () => { loadList(); loadConversation(false); });
+  $("profileBtn").addEventListener("click", openProfile);
+  $("profileClose").addEventListener("click", closeProfile);
+  $("profileBackdrop").addEventListener("click", closeProfile);
   $("returnBtn").addEventListener("click", returnToKira);
   $("sendBtn").addEventListener("click", sendMessage);
   $("backBtn").addEventListener("click", () => {
