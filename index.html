@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -26,7 +26,9 @@
   <div id="login" class="login">
     <div class="login-hero" aria-hidden="true">
       <picture>
-        <source srcset="assets/background.webp" type="image/webp" />
+        <source media="(max-width: 768px)" srcset="assets/background-mob.webp" type="image/webp" />
+        <source media="(max-width: 768px)" srcset="assets/background-mob.jpg" type="image/jpeg" />
+        <source media="(min-width: 769px)" srcset="assets/background.webp" type="image/webp" />
         <img src="assets/background.jpg" alt="" class="login-hero-img" decoding="async" fetchpriority="high" />
       </picture>
       <div class="login-hero-shade"></div>
@@ -173,7 +175,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=13"></script>
-  <script src="app.js?v=13"></script>
+  <script src="config.js?v=14"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

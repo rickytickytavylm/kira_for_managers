@@ -1,5 +1,5 @@
 /* PWA: network-first для HTML/JS/CSS — иначе после деплоя чёрный экран из старого кэша. */
-const CACHE = "mc-v8";
+const CACHE = "mc-v9";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const ASSETS = [
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./assets/background.webp",
+  "./assets/background-mob.webp",
 ];
 
 self.addEventListener("install", (e) => {
