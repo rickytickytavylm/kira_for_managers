@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -107,15 +107,13 @@
           <input id="searchInput" type="search" placeholder="Поиск" enterkeyhint="search" />
         </div>
       </div>
-      <div class="side-filters">
-        <button class="chip-filter is-active" data-filter="all">Все</button>
-        <button class="chip-filter" data-filter="unassigned">Не разобранные</button>
-        <button class="chip-filter" data-filter="mine">На мне</button>
-        <button class="chip-filter" data-filter="waiting">Ждут ответа</button>
-      </div>
       <div class="side-scope" id="sideScope" role="tablist" aria-label="Область диалогов">
         <button type="button" class="scope-btn is-active" data-scope="all" role="tab" aria-selected="true">Все</button>
         <button type="button" class="scope-btn" data-scope="mine" role="tab" aria-selected="false">Мои</button>
+      </div>
+      <div class="side-scope side-view-tabs" id="appTabs" role="tablist" aria-label="Раздел" hidden>
+        <button type="button" class="scope-btn" data-view="analytics" role="tab" aria-selected="false">Аналитика</button>
+        <button type="button" class="scope-btn is-active" data-view="chats" role="tab" aria-selected="true">Чаты</button>
       </div>
       <div id="chatList" class="chat-list"></div>
     </aside>
@@ -151,6 +149,10 @@
         <div id="scroll" class="scroll"></div>
 
         <div class="composer">
+          <div id="readonlyNotice" class="readonly-notice" hidden>
+            <svg class="ico ico-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            <span>Только просмотр. Отвечать клиентам может закреплённый менеджер. Нужен доступ — напишите разработчику.</span>
+          </div>
           <div id="managerHint" class="manager-hint" hidden>
             Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге.
           </div>
@@ -186,6 +188,11 @@
         </button>
       </div>
     </header>
+
+    <div class="dash-tabs" id="dashTabs" role="tablist" aria-label="Раздел">
+      <button type="button" class="dash-tab is-active" data-view="analytics" role="tab" aria-selected="true">Аналитика</button>
+      <button type="button" class="dash-tab" data-view="chats" role="tab" aria-selected="false">Чаты</button>
+    </div>
 
     <div class="dash-periods" id="dashPeriods" role="tablist" aria-label="Период">
       <button type="button" class="dash-period" data-period="today">Сегодня</button>
@@ -278,7 +285,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=23"></script>
-  <script src="app.js?v=23"></script>
+  <script src="config.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

@@ -7,7 +7,16 @@ const LS = {
   token: "mc_token",
   backend: "mc_backend",
   pushOk: "mc_push_ok",
+  seen: "mc_seen",
 };
+
+function loadSeen() {
+  try {
+    return JSON.parse(localStorage.getItem(LS.seen) || "{}") || {};
+  } catch (_) {
+    return {};
+  }
+}
 
 const state = {
   token: localStorage.getItem(LS.token) || "",
@@ -15,12 +24,12 @@ const state = {
   me: "",
   role: "seller", // admin|seller|marketing|head
   isAdmin: false,
+  readOnly: false, // marketing|head — просмотр чатов без ответа
   pushEnabled: false,
   vapidPublicKey: DEFAULT_VAPID,
   users: [],
   currentId: null,
   currentMsgCount: 0,
-  filter: "all",
   scope: "all", // all|mine — tumbler над списком
   q: "",
   statsPeriod: "7d",
@@ -28,6 +37,8 @@ const state = {
   pushTested: false,
   products: null,
   productsLoading: false,
+  seen: loadSeen(),
+  pendingChatId: null,
 };
 
 let listTimer = null;
@@ -67,6 +78,7 @@ function applyWhoami(who) {
   state.me = (who && who.name) || "";
   state.role = (who && who.role) || "seller";
   state.isAdmin = !!(who && who.is_admin) || state.role === "admin";
+  state.readOnly = isDashboardRole(state.role);
   state.pushEnabled = !!(who && who.push_enabled);
   const fromServer = (who && who.vapid_public_key) || "";
   state.vapidPublicKey = isValidVapidPublicKey(fromServer) ? fromServer : DEFAULT_VAPID;
@@ -143,6 +155,31 @@ function isWaiting(u) {
   if (!u.last_user_message_at) return false;
   if (!u.last_assistant_message_at) return true;
   return new Date(u.last_user_message_at) > new Date(u.last_assistant_message_at);
+}
+
+function lastActivityAt(u) {
+  return u.last_message_at || u.last_user_message_at || u.updated_at || null;
+}
+
+/* Непрочитанное: клиент написал новее, чем менеджер в последний раз открывал чат. */
+function isUnread(u) {
+  const owner = u.assigned_manager || "";
+  if (!(owner && owner === state.me)) return false;
+  if (!isWaiting(u)) return false;
+  const last = u.last_user_message_at;
+  if (!last) return false;
+  const seen = state.seen[u.id];
+  if (!seen) return true;
+  return new Date(last) > new Date(seen);
+}
+
+function markSeen(id, ts) {
+  if (!id) return;
+  const stamp = ts || new Date().toISOString();
+  const prev = state.seen[id];
+  if (prev && new Date(prev) >= new Date(stamp)) return;
+  state.seen[id] = stamp;
+  try { localStorage.setItem(LS.seen, JSON.stringify(state.seen)); } catch (_) {}
 }
 
 function isStandalonePwa() {
@@ -318,6 +355,16 @@ function enterApp() {
   $("app").hidden = false;
   document.body.classList.remove("dash-mode");
   document.body.classList.add("app-mode");
+  document.body.classList.toggle("readonly-mode", state.readOnly);
+  stopDashPolling();
+  // Для маркетинга/руководителя — только просмотр: без «Мои», зато с табами раздела.
+  const scope = $("sideScope");
+  const tabs = $("appTabs");
+  if (scope) scope.hidden = state.readOnly;
+  if (tabs) tabs.hidden = !state.readOnly;
+  const profileBtn = $("profileBtn");
+  if (profileBtn) profileBtn.hidden = state.readOnly;
+  if (state.readOnly) state.scope = "all";
   setMe();
   syncScopeUi();
   loadList();
@@ -331,6 +378,7 @@ function enterDashboard() {
   if (dash) dash.hidden = false;
   document.body.classList.remove("app-mode");
   document.body.classList.add("dash-mode");
+  stopPolling();
   location.hash = "dashboard";
   setDashMe();
   const ringsTitle = $("dashRingsTitle");
@@ -342,8 +390,27 @@ function enterDashboard() {
     if (ringsTitle) ringsTitle.textContent = "Воронка и передачи";
     if (mgrTitle) mgrTitle.textContent = "Менеджеры";
   }
+  syncViewTabs("analytics");
   loadDashboard();
   startDashPolling();
+}
+
+function syncViewTabs(view) {
+  document.querySelectorAll(".dash-tab, #appTabs .scope-btn").forEach((b) => {
+    const on = b.dataset.view === view;
+    b.classList.toggle("is-active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+
+function setView(view) {
+  if (view === "chats") {
+    stopDashPolling();
+    enterApp();
+    syncViewTabs("chats");
+  } else {
+    enterDashboard();
+  }
 }
 
 /* ── Push onboarding (PWA + sellers) ─────────────────────────────────── */
@@ -517,6 +584,11 @@ async function loadList() {
     const data = await api("/admin/api/users?q=" + encodeURIComponent(state.q));
     state.users = data.users || [];
     renderList();
+    if (state.pendingChatId != null) {
+      const id = state.pendingChatId;
+      state.pendingChatId = null;
+      if (state.users.some((u) => u.id === id)) openConversation(id);
+    }
   } catch (e) {
     if (e.forbidden) logout();
   }
@@ -524,63 +596,28 @@ async function loadList() {
 
 function filteredUsers() {
   return state.users.filter((u) => {
-    if (state.scope === "mine") {
-      if (!(u.assigned_manager && u.assigned_manager === state.me)) return false;
-    }
-    if (state.filter === "unassigned") return !u.assigned_manager;
-    if (state.filter === "mine") return u.assigned_manager && u.assigned_manager === state.me;
-    if (state.filter === "waiting") return isWaiting(u);
-    return true;
+    const owner = (u.assigned_manager || "").trim();
+    const mine = owner && owner === state.me;
+    // Маркетинг/руководитель — просмотр всех чатов.
+    if (state.readOnly) return true;
+    if (state.scope === "mine") return mine;
+    // «Все»: свободные диалоги (ведёт Кира) + свои закреплённые. Чат, забранный
+    // ДРУГИМ менеджером, из «Все» пропадает. Админ видит вообще всё.
+    if (state.isAdmin) return true;
+    return !owner || mine;
   });
 }
 
 function syncScopeUi() {
-  document.querySelectorAll(".scope-btn").forEach((b) => {
+  document.querySelectorAll("#sideScope .scope-btn").forEach((b) => {
     const on = b.dataset.scope === state.scope;
     b.classList.toggle("is-active", on);
     b.setAttribute("aria-selected", on ? "true" : "false");
   });
-  // Синхронизация с чипом «На мне»
-  if (state.scope === "mine" && state.filter !== "mine") {
-    // scope сужает список; чипы остаются независимыми, кроме явного mine
-  }
-  if (state.filter === "mine") {
-    state.scope = "mine";
-    document.querySelectorAll(".scope-btn").forEach((b) => {
-      const on = b.dataset.scope === "mine";
-      b.classList.toggle("is-active", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
-    });
-  }
-}
-
-function setFilter(filter) {
-  state.filter = filter;
-  document.querySelectorAll(".chip-filter").forEach((b) => {
-    b.classList.toggle("is-active", b.dataset.filter === filter);
-  });
-  if (filter === "mine") {
-    state.scope = "mine";
-  } else if (filter === "all") {
-    // не сбрасываем scope автоматически — tumbler независим, но sync all chip ok
-  }
-  syncScopeUi();
-  renderList();
 }
 
 function setScope(scope) {
   state.scope = scope;
-  if (scope === "mine") {
-    state.filter = "mine";
-    document.querySelectorAll(".chip-filter").forEach((b) => {
-      b.classList.toggle("is-active", b.dataset.filter === "mine");
-    });
-  } else if (state.filter === "mine") {
-    state.filter = "all";
-    document.querySelectorAll(".chip-filter").forEach((b) => {
-      b.classList.toggle("is-active", b.dataset.filter === "all");
-    });
-  }
   syncScopeUi();
   renderList();
 }
@@ -598,18 +635,20 @@ function renderList() {
     const owner = u.assigned_manager || "";
     const mine = owner && owner === state.me;
     const waiting = isWaiting(u);
+    const unread = isUnread(u) && u.id !== state.currentId;
     let dotClass = "";
     if (owner) dotClass = "manager";
     else if (waiting) dotClass = "waiting";
     const uname = u.telegram_username ? "@" + u.telegram_username : (u.phone || "");
     let tag = "";
     if (mine) tag = '<span class="ci-tag manager">на мне</span>';
-    else if (owner) tag = `<span class="ci-tag other" title="${esc(owner)}">${esc(owner)}</span>`;
+    else if (owner) tag = `<span class="ci-tag other" title="${esc(owner)}">${esc(firstName(owner))}</span>`;
     else if (waiting) tag = '<span class="ci-tag">ждёт</span>';
-    const last = u.last_message_at || u.updated_at;
+    const badge = unread ? '<span class="ci-unread" aria-label="новое сообщение"></span>' : "";
+    const last = lastActivityAt(u);
     const displayName = u.display_name || "Гость";
     return `
-      <div class="chat-item${active}" data-id="${u.id}">
+      <div class="chat-item${active}${unread ? " is-unread" : ""}" data-id="${u.id}">
         ${avatarHtml(displayName, { dot: dotClass })}
         <div class="ci-body">
           <div class="ci-name">${esc(displayName)}</div>
@@ -617,7 +656,7 @@ function renderList() {
         </div>
         <div class="ci-side">
           <span class="ci-time">${fmtTime(last)}</span>
-          ${tag}
+          ${badge || tag}
         </div>
       </div>`;
   }).join("");
@@ -674,15 +713,16 @@ async function loadConversation(scrollBottom) {
   if (u.current_stage) metaBits.push(u.current_stage);
   $("convMeta").textContent = metaBits.join(" · ") || "—";
 
+  const readOnly = state.readOnly;
   const manager = u.chat_control === "manager";
   const owner = u.assigned_manager || "";
   const mine = owner && owner === state.me;
-  const canControl = state.isAdmin || !owner || mine;
-  const canReturn = state.isAdmin || mine;
+  const canControl = !readOnly && (state.isAdmin || !owner || mine);
+  const canReturn = !readOnly && (state.isAdmin || mine);
   const canWrite = canControl;
   $("controlBadge").hidden = !(manager || owner);
   if (owner && !canControl) {
-    $("controlBadge").textContent = "Ведёт: " + owner;
+    $("controlBadge").textContent = "Ведёт: " + firstName(owner);
   } else if (manager && canControl) {
     $("controlBadge").textContent = "Чат ведёте вы";
   } else if (owner && mine) {
@@ -690,30 +730,38 @@ async function loadConversation(scrollBottom) {
   } else {
     $("controlBadge").textContent = "";
   }
-  $("controlBadge").classList.toggle("other", !!(manager && owner && !mine));
+  $("controlBadge").classList.toggle("other", !!(owner && !mine));
   $("returnBtn").hidden = !(manager && canReturn);
+
   const hint = $("managerHint");
-  if (!canWrite) {
-    hint.hidden = false;
-    hint.textContent = `Лид закреплён за менеджером: ${owner}. У вас нет доступа к этому чату.`;
-  } else if (manager) {
-    hint.hidden = false;
-    hint.textContent = "Вы пишете клиенту как менеджер. Кира молчит, пока вы в диалоге.";
-  } else {
-    hint.hidden = true;
-  }
-
-  const showProducts = !!(manager && canWrite);
-  setProductPickerVisible(showProducts);
-  if (showProducts) ensureProductsLoaded();
-
+  const notice = $("readonlyNotice");
+  const row = $("conversation").querySelector(".composer-row");
   const input = $("input");
   const sendBtn = $("sendBtn");
-  if (input) {
-    input.disabled = !canWrite;
-    input.placeholder = canWrite ? "Сообщение клиенту…" : "Лид занят другим менеджером";
+  if (readOnly) {
+    if (notice) notice.hidden = false;
+    if (hint) hint.hidden = true;
+    if (row) row.hidden = true;
+    setProductPickerVisible(false);
+  } else {
+    if (notice) notice.hidden = true;
+    if (row) row.hidden = false;
+    if (!canWrite) {
+      hint.hidden = false;
+      hint.textContent = `Лид закреплён за менеджером: ${owner}. У вас нет доступа к этому чату.`;
+    } else {
+      // «Кира молчит…» теперь показывается звёздочкой под карточкой события.
+      hint.hidden = true;
+    }
+    const showProducts = !!(manager && canWrite);
+    setProductPickerVisible(showProducts);
+    if (showProducts) ensureProductsLoaded();
+    if (input) {
+      input.disabled = !canWrite;
+      input.placeholder = canWrite ? "Сообщение клиенту…" : "Лид занят другим менеджером";
+    }
+    if (sendBtn) sendBtn.disabled = !canWrite;
   }
-  if (sendBtn) sendBtn.disabled = !canWrite;
 
   if (msgs.length !== state.currentMsgCount) {
     renderMessages(msgs);
@@ -723,6 +771,14 @@ async function loadConversation(scrollBottom) {
   if (scrollBottom) {
     const sc = $("scroll");
     sc.scrollTop = sc.scrollHeight;
+  }
+
+  // Отметить чат прочитанным: клиент больше не «висит непрочитанным» в «Мои».
+  if (msgs.length) {
+    const lastAt = msgs[msgs.length - 1].created_at;
+    if (lastAt) markSeen(id, lastAt);
+  } else {
+    markSeen(id);
   }
 }
 
@@ -737,7 +793,7 @@ function parseSystemEvent(text) {
   const t = (text || "").trim();
   if (!t) return null;
 
-  let m = t.match(/^Решение Киры\s*[—\-]\s*менеджера(?::\s*(.+))?$/i);
+  let m = t.match(/^Решение Киры\s*[—\-]\s*(?:позвать\s+)?менеджера(?::\s*(.+))?$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
   m = t.match(/^Подключился менеджер(?::\s*(.+))?$/i);
@@ -755,11 +811,12 @@ function parseSystemEvent(text) {
   return null;
 }
 
-function renderEventCard({ type, title, sub, time }) {
+function renderEventCard({ type, title, sub, time, note }) {
   const isKira = type === "kira_return";
   const ico = isKira
     ? `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 0 1 4 4v1h1a3 3 0 0 1 0 6h-1v1a4 4 0 0 1-8 0v-1H7a3 3 0 0 1 0-6h1V7a4 4 0 0 1 4-4z"/><circle cx="9.5" cy="10.5" r="0.8" fill="currentColor"/><circle cx="14.5" cy="10.5" r="0.8" fill="currentColor"/></svg>`
     : `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const noteHtml = note ? `<div class="msg-event-note">${esc(note)}</div>` : "";
   return `
     <div class="msg-event msg-event--${isKira ? "kira" : "join"}">
       <div class="msg-event-card">
@@ -770,6 +827,7 @@ function renderEventCard({ type, title, sub, time }) {
         </div>
         <time class="msg-event-time">${time}</time>
       </div>
+      ${noteHtml}
     </div>`;
 }
 
@@ -785,9 +843,10 @@ function renderMessages(msgs) {
       if (ev && ev.type === "manager_join") {
         return renderEventCard({
           type: "manager_join",
-          title: "Решение Киры — менеджера",
+          title: "Решение Киры — позвать менеджера",
           sub: ev.name || "менеджер",
           time,
+          note: "* Кира молчит, пока вы ведёте диалог.",
         });
       }
       if (ev && ev.type === "kira_return") {
@@ -1264,6 +1323,17 @@ function autoGrow() {
   t.style.height = Math.min(t.scrollHeight, 140) + "px";
 }
 
+function spinRefresh(btn) {
+  if (!btn) return;
+  const ico = btn.querySelector(".ico");
+  if (!ico) return;
+  ico.classList.remove("is-spinning");
+  // reflow, чтобы анимация перезапускалась при частых кликах
+  void ico.offsetWidth;
+  ico.classList.add("is-spinning");
+  ico.addEventListener("animationend", () => ico.classList.remove("is-spinning"), { once: true });
+}
+
 function bindEvents() {
   const on = (id, event, fn) => {
     const el = $(id);
@@ -1273,8 +1343,8 @@ function bindEvents() {
   on("loginToken", "keydown", (e) => { if (e.key === "Enter") doLogin(); });
   on("logoutBtn", "click", logout);
   on("dashLogoutBtn", "click", logout);
-  on("dashRefreshBtn", "click", loadDashboard);
-  on("refreshBtn", "click", () => { loadList(); loadConversation(false); });
+  on("dashRefreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadDashboard(); });
+  on("refreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadList(); loadConversation(false); });
   on("profileBtn", "click", openProfile);
   on("profileClose", "click", closeProfile);
   on("profileBackdrop", "click", closeProfile);
@@ -1309,12 +1379,12 @@ function bindEvents() {
     });
   }
 
-  document.querySelectorAll(".chip-filter").forEach((btn) => {
-    btn.addEventListener("click", () => setFilter(btn.dataset.filter));
+  document.querySelectorAll("#sideScope .scope-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setScope(btn.dataset.scope));
   });
 
-  document.querySelectorAll(".scope-btn").forEach((btn) => {
-    btn.addEventListener("click", () => setScope(btn.dataset.scope));
+  document.querySelectorAll(".dash-tab, #appTabs .scope-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
   });
 
   document.querySelectorAll(".dash-period").forEach((btn) => {
@@ -1339,8 +1409,19 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=12").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=13").catch(() => {});
   });
+}
+
+function readPendingChat() {
+  try {
+    const id = new URLSearchParams(location.search).get("chat");
+    if (id && /^\d+$/.test(id)) {
+      state.pendingChatId = Number(id);
+      // Убираем ?chat из URL, чтобы обычный рефреш не переоткрывал чат.
+      history.replaceState(null, "", location.pathname + location.hash);
+    }
+  } catch (_) {}
 }
 
 async function restoreSession() {
@@ -1378,6 +1459,7 @@ async function restoreSession() {
 document.addEventListener("DOMContentLoaded", () => {
   try {
     registerPWA();
+    readPendingChat();
     bindEvents();
     showLogin();
     if (state.token) restoreSession();
