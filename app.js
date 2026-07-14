@@ -30,6 +30,7 @@ const state = {
   users: [],
   currentId: null,
   currentMsgCount: 0,
+  convLoading: false,
   scope: "all", // all|mine — tumbler над списком
   q: "",
   statsPeriod: "7d",
@@ -721,12 +722,16 @@ async function openConversation(id) {
 async function loadConversation(scrollBottom) {
   const id = state.currentId;
   if (!id) return;
+  if (state.convLoading) return; // не даём поллингу наложиться на активную загрузку
+  state.convLoading = true;
   let data;
   try {
     data = await api("/admin/api/users/" + id);
   } catch (e) {
     if (e.forbidden) logout();
     return;
+  } finally {
+    state.convLoading = false;
   }
   if (state.currentId !== id) return;
   const u = data.user || {};
@@ -793,11 +798,19 @@ async function loadConversation(scrollBottom) {
   }
 
   if (msgs.length !== state.currentMsgCount) {
+    const sc = $("scroll");
+    // Расстояние до низа ДО перерисовки: если менеджер читал внизу — держим низ,
+    // если отмотал вверх — сохраняем позицию и не «дёргаем» экран вниз.
+    const fromBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight;
+    const wasNearBottom = fromBottom < 120;
     renderMessages(msgs);
     state.currentMsgCount = msgs.length;
-    scrollBottom = true;
-  }
-  if (scrollBottom) {
+    if (scrollBottom || wasNearBottom) {
+      sc.scrollTop = sc.scrollHeight;
+    } else {
+      sc.scrollTop = Math.max(0, sc.scrollHeight - sc.clientHeight - fromBottom);
+    }
+  } else if (scrollBottom) {
     const sc = $("scroll");
     sc.scrollTop = sc.scrollHeight;
   }
@@ -831,8 +844,12 @@ function parseSystemEvent(text) {
   m = t.match(/^\[\s*менеджер\s+подключился\s+к\s+диалогу(?::\s*(.+?))?\s*\]$/i);
   if (m) return { type: "manager_join", name: (m[1] || "").trim() };
 
-  m = t.match(/^Кира вернулась в чат(?:\s*\(вернул:\s*(.+?)\))?$/i);
-  if (m) return { type: "kira_return", name: (m[1] || "").trim() };
+  m = t.match(/^Кира вернулась в чат(?:\s*\((.+?)\))?$/i);
+  if (m) {
+    const inside = (m[1] || "").trim();
+    if (/^авто/i.test(inside)) return { type: "kira_return", auto: true };
+    return { type: "kira_return", name: inside.replace(/^вернул:\s*/i, "").trim() };
+  }
 
   m = t.match(/^Вернулась Кира(?:\s*\(вернул:\s*(.+?)\))?$/i);
   if (m) return { type: "kira_return", name: (m[1] || "").trim() };
@@ -882,7 +899,9 @@ function renderMessages(msgs) {
         return renderEventCard({
           type: "kira_return",
           title: "Кира вернулась в чат",
-          sub: ev.name ? `Вернул: ${ev.name}` : "ИИ снова ведёт диалог",
+          sub: ev.auto
+            ? "Автовозврат: менеджер долго не отвечал"
+            : (ev.name ? `Вернул: ${ev.name}` : "ИИ снова ведёт диалог"),
           time,
         });
       }
@@ -1438,7 +1457,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=14").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=15").catch(() => {});
   });
 }
 
