@@ -220,6 +220,29 @@ function resolveVapidPublicKey() {
 }
 
 /* ── Вход / выход ────────────────────────────────────────────────────── */
+function showBooting() {
+  // Сплэш при восстановлении сессии: заголовок + спиннер вместо мелькающей формы.
+  stopPolling();
+  stopDashPolling();
+  $("app").hidden = true;
+  const dash = $("dashboard");
+  if (dash) dash.hidden = true;
+  $("login").hidden = false;
+  $("login").classList.remove("is-welcome", "is-leaving", "is-push");
+  const card = $("loginCard");
+  const copy = $("loginHeroCopy");
+  const welcome = $("loginWelcome");
+  const push = $("loginPush");
+  const booting = $("loginBooting");
+  if (card) card.hidden = true;
+  if (copy) copy.hidden = false;
+  if (welcome) welcome.hidden = true;
+  if (push) push.hidden = true;
+  if (booting) booting.hidden = false;
+  const err = $("loginError");
+  if (err) err.hidden = true;
+}
+
 function showLogin(msg) {
   stopPolling();
   stopDashPolling();
@@ -232,10 +255,12 @@ function showLogin(msg) {
   const copy = $("loginHeroCopy");
   const welcome = $("loginWelcome");
   const push = $("loginPush");
+  const booting = $("loginBooting");
   if (card) card.hidden = false;
   if (copy) copy.hidden = false;
   if (welcome) welcome.hidden = true;
   if (push) push.hidden = true;
+  if (booting) booting.hidden = true;
   resetPushGateUi();
   $("loginToken").value = state.token || "";
   $("loginBtn").disabled = false;
@@ -274,10 +299,12 @@ function playWelcomeThenEnter() {
   const welcome = $("loginWelcome");
   const push = $("loginPush");
   const welcomeName = $("welcomeName");
+  const booting = $("loginBooting");
   if (welcomeName) welcomeName.textContent = "Приветствую, " + name;
   if (card) card.hidden = true;
   if (copy) copy.hidden = true;
   if (push) push.hidden = true;
+  if (booting) booting.hidden = true;
   if (welcome) welcome.hidden = false;
   $("login").classList.remove("is-push");
   $("login").classList.add("is-welcome");
@@ -474,10 +501,12 @@ function showPushGate() {
   const copy = $("loginHeroCopy");
   const welcome = $("loginWelcome");
   const push = $("loginPush");
+  const booting = $("loginBooting");
   if (card) card.hidden = true;
   if (copy) copy.hidden = true;
   if (welcome) welcome.hidden = true;
   if (push) push.hidden = false;
+  if (booting) booting.hidden = true;
   $("login").classList.remove("is-leaving");
   $("login").classList.add("is-push");
   resetPushGateUi();
@@ -1409,7 +1438,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=13").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=14").catch(() => {});
   });
 }
 
@@ -1461,8 +1490,12 @@ document.addEventListener("DOMContentLoaded", () => {
     registerPWA();
     readPendingChat();
     bindEvents();
-    showLogin();
-    if (state.token) restoreSession();
+    if (state.token) {
+      showBooting();
+      restoreSession();
+    } else {
+      showLogin();
+    }
   } catch (e) {
     console.error(e);
     try { showLogin("Ошибка интерфейса. Обновите страницу."); } catch (e2) {}
