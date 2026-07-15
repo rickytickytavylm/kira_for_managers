@@ -624,20 +624,12 @@ async function loadList() {
   }
 }
 
-function isClosedDeal(u) {
-  const st = (u.deal_status || "").toLowerCase();
-  return st === "won" || st === "lost";
-}
-
 function filteredUsers() {
   return state.users.filter((u) => {
     const owner = (u.assigned_manager || "").trim();
     const mine = owner && owner === state.me;
     // Маркетинг/руководитель — просмотр всех чатов.
     if (state.readOnly) return true;
-    // Завершённые сделки (выиграна/проиграна в amoCRM) убираем из рабочих
-    // списков, чтобы не засорять активную работу. Открытый сейчас чат оставляем.
-    if (isClosedDeal(u) && u.id !== state.currentId) return false;
     if (state.scope === "mine") return mine;
     // «Все»: свободные диалоги (ведёт Кира) + свои закреплённые. Чат, забранный
     // ДРУГИМ менеджером, из «Все» пропадает. Админ видит вообще всё.
@@ -678,10 +670,8 @@ function renderList() {
     if (owner) dotClass = "manager";
     else if (waiting) dotClass = "waiting";
     const uname = u.telegram_username ? "@" + u.telegram_username : (u.phone || "");
-    const paid = (u.deal_status || "").toLowerCase() === "won";
     let tag = "";
-    if (paid) tag = '<span class="ci-tag paid">оплачено</span>';
-    else if (mine) tag = '<span class="ci-tag manager">на мне</span>';
+    if (mine) tag = '<span class="ci-tag manager">на мне</span>';
     else if (owner) tag = `<span class="ci-tag other" title="${esc(owner)}">${esc(firstName(owner))}</span>`;
     else if (waiting) tag = '<span class="ci-tag">ждёт</span>';
     const badge = unread ? '<span class="ci-unread" aria-label="новое сообщение"></span>' : "";
@@ -1505,7 +1495,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=20").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=21").catch(() => {});
   });
 }
 
