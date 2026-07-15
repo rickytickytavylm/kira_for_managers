@@ -716,6 +716,7 @@ body:has(.dashboard:not([hidden])) .mesh-bg {
 }
 .ci-tag.manager { background: var(--green-soft); color: var(--green); }
 .ci-tag.other { background: var(--fill-tertiary); color: var(--text-secondary); }
+.ci-tag.paid { background: var(--green); color: #fff; }
 
 .ci-unread {
   width: 11px;

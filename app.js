@@ -678,8 +678,10 @@ function renderList() {
     if (owner) dotClass = "manager";
     else if (waiting) dotClass = "waiting";
     const uname = u.telegram_username ? "@" + u.telegram_username : (u.phone || "");
+    const paid = (u.deal_status || "").toLowerCase() === "won";
     let tag = "";
-    if (mine) tag = '<span class="ci-tag manager">на мне</span>';
+    if (paid) tag = '<span class="ci-tag paid">оплачено</span>';
+    else if (mine) tag = '<span class="ci-tag manager">на мне</span>';
     else if (owner) tag = `<span class="ci-tag other" title="${esc(owner)}">${esc(firstName(owner))}</span>`;
     else if (waiting) tag = '<span class="ci-tag">ждёт</span>';
     const badge = unread ? '<span class="ci-unread" aria-label="новое сообщение"></span>' : "";
@@ -1503,7 +1505,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=19").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=20").catch(() => {});
   });
 }
 
