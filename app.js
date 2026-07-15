@@ -1096,9 +1096,9 @@ function pickRings(rings) {
   if (state.role === "head") {
     return [
       { key: "leads", accent: 0 },
-      { key: "taken_now", accent: 1 },
-      { key: "takeovers", accent: 2 },
-      { key: "waiting", accent: 5 },
+      { key: "kira_handoffs", accent: 1 },
+      { key: "takeovers", accent: 3 },
+      { key: "taken_now", accent: 2 },
     ].map((x) => ({ ...rings[x.key], key: x.key, accent: x.accent })).filter((r) => r && r.label);
   }
   return Object.keys(rings).slice(0, 4).map((key, i) => ({ ...rings[key], key, accent: i }));
@@ -1197,7 +1197,7 @@ function renderDashManagers(data) {
         <span></span>
         <span>Имя</span>
         <span>Активные</span>
-        <span>Забрали</span>
+        <span>Забрал вручную</span>
       </div>
       ${managers.map((m, i) => {
         const w = Math.max(6, Math.round(((m.active || 0) / maxActive) * 100));
@@ -1457,7 +1457,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=15").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=17").catch(() => {});
   });
 }
 
