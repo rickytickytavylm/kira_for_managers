@@ -624,12 +624,20 @@ async function loadList() {
   }
 }
 
+function isClosedDeal(u) {
+  const st = (u.deal_status || "").toLowerCase();
+  return st === "won" || st === "lost";
+}
+
 function filteredUsers() {
   return state.users.filter((u) => {
     const owner = (u.assigned_manager || "").trim();
     const mine = owner && owner === state.me;
     // Маркетинг/руководитель — просмотр всех чатов.
     if (state.readOnly) return true;
+    // Завершённые сделки (выиграна/проиграна в amoCRM) убираем из рабочих
+    // списков, чтобы не засорять активную работу. Открытый сейчас чат оставляем.
+    if (isClosedDeal(u) && u.id !== state.currentId) return false;
     if (state.scope === "mine") return mine;
     // «Все»: свободные диалоги (ведёт Кира) + свои закреплённые. Чат, забранный
     // ДРУГИМ менеджером, из «Все» пропадает. Админ видит вообще всё.
@@ -1088,15 +1096,18 @@ function pickRings(rings) {
   if (state.role === "marketing") {
     return [
       { key: "leads", accent: 0 },
-      { key: "kira_handoffs", accent: 1 },
+      { key: "silent", accent: 4 },
+      { key: "won", accent: 1 },
+      { key: "kira_handoffs", accent: 6 },
       { key: "phone", accent: 2 },
-      { key: "takeovers", accent: 3 },
     ].map((x) => ({ ...rings[x.key], key: x.key, accent: x.accent })).filter((r) => r && r.label);
   }
   if (state.role === "head") {
     return [
       { key: "leads", accent: 0 },
-      { key: "kira_handoffs", accent: 1 },
+      { key: "silent", accent: 4 },
+      { key: "won", accent: 1 },
+      { key: "kira_handoffs", accent: 6 },
       { key: "takeovers", accent: 3 },
       { key: "taken_now", accent: 2 },
     ].map((x) => ({ ...rings[x.key], key: x.key, accent: x.accent })).filter((r) => r && r.label);
@@ -1214,6 +1225,40 @@ function renderDashManagers(data) {
     </div>`;
 }
 
+function fmtDealDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+}
+
+function renderDashDeals(data) {
+  const box = $("dashDeals");
+  const section = $("dashDealsSection");
+  if (!box) return;
+  const deals = data.won_deals || [];
+  if (section) section.hidden = false;
+  if (!deals.length) {
+    box.innerHTML = '<div class="dash-empty">Завершённых сделок за период нет</div>';
+    return;
+  }
+  box.innerHTML = deals.map((d, i) => {
+    const name = esc(d.name || "Гость");
+    const src = esc(d.source || "direct");
+    const when = fmtDealDate(d.won_at);
+    const idText = d.deal_id ? "#" + d.deal_id : "—";
+    const idHtml = d.amo_url
+      ? `<a class="deal-id" href="${esc(d.amo_url)}" target="_blank" rel="noopener">${idText}</a>`
+      : `<span class="deal-id muted">${idText}</span>`;
+    return `
+      <div class="deal-row" style="--i:${i}">
+        <span class="deal-name">${name}<span class="deal-src">${src}</span></span>
+        <span class="deal-when">${when}</span>
+        ${idHtml}
+      </div>`;
+  }).join("");
+}
+
 async function loadDashboard() {
   try {
     const data = await api("/admin/api/stats?period=" + encodeURIComponent(state.statsPeriod));
@@ -1221,6 +1266,7 @@ async function loadDashboard() {
     renderDashRings(data);
     renderDashSources(data);
     renderDashManagers(data);
+    renderDashDeals(data);
 
     // head: managers section first visually via CSS order
     const scroll = document.querySelector(".dash-scroll");
@@ -1457,7 +1503,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=17").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=19").catch(() => {});
   });
 }
 
