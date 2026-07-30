@@ -41,6 +41,7 @@ const state = {
   seen: loadSeen(),
   pendingChatId: null,
   listSig: "",
+  sending: false,
 };
 
 let listTimer = null;
@@ -1085,34 +1086,96 @@ async function copyProductLink(productId, btn) {
   }
 }
 
+/* Оптимистичный «призрачный» пузырь: показываем сообщение сразу, до ответа
+   сервера, со статусом «отправка…». По успеху его заменит реальная переписка,
+   по ошибке — уберём и вернём текст в поле. */
+function appendPendingMessage(text) {
+  const sc = $("scroll");
+  if (!sc) return null;
+  const placeholder = sc.querySelector(".conv-empty, .conv-loading");
+  if (placeholder) sc.innerHTML = "";
+  const el = document.createElement("div");
+  el.className = "msg msg--manager is-pending";
+  el.innerHTML =
+    '<div class="msg-head"><span class="msg-who">Менеджер</span>' +
+    '<span class="msg-sending"><span class="msg-sending-dot"></span>отправка…</span></div>' +
+    '<div class="msg-body">' + esc(text) + '</div>';
+  sc.appendChild(el);
+  sc.scrollTop = sc.scrollHeight;
+  return el;
+}
+
+function removePendingMessage(el) {
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function restoreInput(input, text) {
+  // Не затираем, если менеджер уже начал печатать новое сообщение.
+  if (!input || (input.value || "").trim()) return;
+  input.value = text;
+  autoGrow();
+  input.focus();
+  try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+}
+
+function toast(message) {
+  let t = document.getElementById("mcToast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "mcToast";
+    t.className = "mc-toast";
+    document.body.appendChild(t);
+  }
+  t.textContent = message;
+  // reflow, чтобы анимация появления перезапускалась при частых тостах
+  void t.offsetWidth;
+  t.classList.add("is-visible");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("is-visible"), 3500);
+}
+
 async function sendMessage() {
   const input = $("input");
   if (!input || input.disabled) return;
   const text = (input.value || "").trim();
   if (!text || !state.currentId) return;
+  if (state.sending) return; // защита от двойной отправки
+  const targetId = state.currentId;
   const btn = $("sendBtn");
+  state.sending = true;
   btn.disabled = true;
+  // Оптимистично: сразу чистим поле и показываем «отправляется…».
+  input.value = "";
+  autoGrow();
+  const pending = appendPendingMessage(text);
   try {
-    await api("/admin/api/users/" + state.currentId + "/send", {
+    await api("/admin/api/users/" + targetId + "/send", {
       method: "POST",
       body: { text },
     });
-    input.value = "";
-    autoGrow();
-    await loadConversation(true, true);
+    // Успех: если чат ещё открыт — заменяем призрачный пузырь реальной перепиской.
+    if (state.currentId === targetId) await loadConversation(true, true);
     loadList();
   } catch (e) {
+    removePendingMessage(pending);
     const msg = String(e.message || "");
     if (/owned by/i.test(msg)) {
-      alert("Этот лид уже забрал другой менеджер. Вам сюда писать нельзя.");
-      await loadConversation(false, true);
-      loadList();
+      toast("Этот лид уже забрал другой менеджер — писать сюда нельзя.");
+      if (state.currentId === targetId) {
+        await loadConversation(false, true);
+        loadList();
+      }
     } else {
-      alert("Не удалось отправить: " + msg);
+      // Не теряем текст: возвращаем в поле, чтобы можно было повторить.
+      if (state.currentId === targetId) restoreInput(input, text);
+      toast("Не отправилось. Проверьте связь и попробуйте ещё раз.");
     }
   } finally {
-    if (!input.disabled) btn.disabled = false;
-    if (!input.disabled) input.focus();
+    state.sending = false;
+    if (!input.disabled) {
+      btn.disabled = false;
+      input.focus();
+    }
   }
 }
 
@@ -1550,7 +1613,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=22").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=23").catch(() => {});
   });
 }
 

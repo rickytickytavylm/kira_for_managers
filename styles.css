@@ -1909,3 +1909,53 @@ a.deal-id:hover { text-decoration: underline; }
   animation: conv-spin 0.7s linear infinite;
 }
 @keyframes conv-spin { to { transform: rotate(360deg); } }
+
+/* ── Оптимистичная отправка ─────────────────────────────────────────── */
+.msg.is-pending { opacity: 0.72; animation: msg-pending-in 0.18s ease-out; }
+@keyframes msg-pending-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 0.72; transform: translateY(0); }
+}
+.msg-sending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.msg-sending-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid rgba(235, 235, 245, 0.28);
+  border-top-color: var(--blue);
+  animation: conv-spin 0.7s linear infinite;
+}
+
+/* ── Тост (ненавязчивые ошибки/статусы) ─────────────────────────────── */
+.mc-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+  transform: translate(-50%, 14px);
+  max-width: min(92vw, 420px);
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: rgba(28, 28, 30, 0.92);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9999;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.mc-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
