@@ -9,7 +9,7 @@ window.CONSOLE_CONFIG = {
   BACKEND_URL:
     location.hostname === "localhost" || location.hostname === "127.0.0.1"
       ? "http://localhost:8000"
-      : "https://shurovai-production.up.railway.app",
+      : "https://rickytickytavylm-shurov-ai-ea39.twc1.net",
   VAPID_PUBLIC_KEY:
     "BN7L6P2AfHCIvaE8H-feWrTTxCM2w55ZblKPEwnt89ZUTnqXenXLLVwoDHMfMx9mOZ-z7vDHng993ZFE_Uxzzyo",
 };
