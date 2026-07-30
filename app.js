@@ -40,6 +40,7 @@ const state = {
   productsLoading: false,
   seen: loadSeen(),
   pendingChatId: null,
+  listSig: "",
 };
 
 let listTimer = null;
@@ -649,13 +650,35 @@ function syncScopeUi() {
 function setScope(scope) {
   state.scope = scope;
   syncScopeUi();
-  renderList();
+  renderList(true);
 }
 
-function renderList() {
+function listSignature(list) {
+  // Подпись из полей, влияющих на вид строки. Совпала — список не менялся,
+  // перерисовку пропускаем (без дёрганья, потери фокуса и скролла).
+  return list
+    .map((u) => [
+      u.id,
+      lastActivityAt(u) || "",
+      u.assigned_manager || "",
+      isWaiting(u) ? 1 : 0,
+      isUnread(u) ? 1 : 0,
+      u.id === state.currentId ? 1 : 0,
+      u.display_name || "",
+      u.telegram_username || u.phone || u.current_stage || "",
+    ].join("~"))
+    .join("|");
+}
+
+function renderList(force) {
   const box = $("chatList");
   if (!box) return;
   const list = filteredUsers();
+  const sig = state.scope + ":" + state.q + ":" + listSignature(list);
+  if (!force && sig === state.listSig && box.childElementCount) return;
+  // Пока менеджер печатает — не перерисовываем список (чиним «отскок» ввода).
+  if (!force && isComposing()) return;
+  state.listSig = sig;
   if (!list.length) {
     box.innerHTML = '<div class="list-empty">Ничего не найдено</div>';
     return;
@@ -697,6 +720,24 @@ function renderList() {
 }
 
 /* ── Переписка ───────────────────────────────────────────────────────── */
+/* Менеджер сейчас печатает: не трогаем DOM переписки/списка, иначе на
+   мобильных «отскакивает» ввод (обрывается композиция при перерисовке). */
+function isComposing() {
+  const input = $("input");
+  const search = $("searchInput");
+  const active = document.activeElement;
+  if (input && active === input && (input.value || "").length) return true;
+  if (search && active === search && (search.value || "").length) return true;
+  return false;
+}
+
+function showConvLoading() {
+  const sc = $("scroll");
+  if (!sc) return;
+  sc.innerHTML =
+    '<div class="conv-loading"><span class="conv-spinner" aria-label="Загрузка"></span></div>';
+}
+
 function setChatView(open) {
   const main = $("main");
   if (open) {
@@ -711,18 +752,27 @@ function setChatView(open) {
 }
 
 async function openConversation(id) {
+  if (state.currentId === id && state.currentMsgCount > 0) {
+    // Уже открыт — не мигаем спиннером, просто подтянем свежее.
+    loadConversation(true, true);
+    return;
+  }
   state.currentId = id;
-  state.currentMsgCount = 0;
+  state.currentMsgCount = -1; // -1 → первая отрисовка сработает даже для пустого чата
   $("app").classList.add("viewing");
   setChatView(true);
-  renderList();
-  await loadConversation(true);
+  showConvLoading(); // мгновенный спиннер, пока грузится переписка
+  renderList(true);
+  await loadConversation(true, true);
 }
 
-async function loadConversation(scrollBottom) {
+async function loadConversation(scrollBottom, force) {
   const id = state.currentId;
   if (!id) return;
-  if (state.convLoading) return; // не даём поллингу наложиться на активную загрузку
+  // Явное открытие чата (force) всегда грузим; фоновый поллинг — только если
+  // не идёт активная загрузка и менеджер не печатает.
+  if (!force && state.convLoading) return;
+  if (!force && isComposing()) return;
   state.convLoading = true;
   let data;
   try {
@@ -879,6 +929,10 @@ function renderEventCard({ type, title, sub, time, note }) {
 
 function renderMessages(msgs) {
   const sc = $("scroll");
+  if (!msgs.length) {
+    sc.innerHTML = '<div class="conv-empty">Пока нет сообщений</div>';
+    return;
+  }
   sc.innerHTML = msgs.map((m) => {
     const r = roleOf(m);
     const body = (m.content || "").trim();
@@ -1045,13 +1099,13 @@ async function sendMessage() {
     });
     input.value = "";
     autoGrow();
-    await loadConversation(true);
+    await loadConversation(true, true);
     loadList();
   } catch (e) {
     const msg = String(e.message || "");
     if (/owned by/i.test(msg)) {
       alert("Этот лид уже забрал другой менеджер. Вам сюда писать нельзя.");
-      await loadConversation(false);
+      await loadConversation(false, true);
       loadList();
     } else {
       alert("Не удалось отправить: " + msg);
@@ -1067,7 +1121,7 @@ async function returnToKira() {
   if (!confirm("Вернуть управление Кире? Она снова начнёт отвечать этому клиенту.")) return;
   try {
     await api("/admin/api/users/" + state.currentId + "/return-to-kira", { method: "POST" });
-    await loadConversation(false);
+    await loadConversation(false, true);
     loadList();
   } catch (e) {
     alert("Ошибка: " + e.message);
@@ -1286,7 +1340,8 @@ function setStatsPeriod(period) {
 /* ── Поллинг ─────────────────────────────────────────────────────────── */
 function startPolling() {
   stopPolling();
-  listTimer = setInterval(loadList, 5000);
+  // Список тяжелее переписки — опрашиваем реже, чтобы не грузить сеть/сервер.
+  listTimer = setInterval(loadList, 8000);
   convTimer = setInterval(() => loadConversation(false), 3000);
 }
 function stopPolling() {
@@ -1430,7 +1485,7 @@ function bindEvents() {
   on("logoutBtn", "click", logout);
   on("dashLogoutBtn", "click", logout);
   on("dashRefreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadDashboard(); });
-  on("refreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadList(); loadConversation(false); });
+  on("refreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadList(); loadConversation(false, true); });
   on("profileBtn", "click", openProfile);
   on("profileClose", "click", closeProfile);
   on("profileBackdrop", "click", closeProfile);
@@ -1444,7 +1499,7 @@ function bindEvents() {
     state.currentId = null;
     closeProductSheet();
     setChatView(false);
-    renderList();
+    renderList(true);
   });
 
   const input = $("input");
@@ -1495,7 +1550,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=21").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=22").catch(() => {});
   });
 }
 

@@ -1888,3 +1888,24 @@ a.deal-id:hover { text-decoration: underline; }
   .metric-ring-core { width: 96px; height: 96px; }
   .metric-ring-n { font-size: 22px; }
 }
+
+/* ── Загрузка переписки ─────────────────────────────────────────────── */
+.conv-loading,
+.conv-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+.conv-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid rgba(235, 235, 245, 0.18);
+  border-top-color: var(--blue);
+  animation: conv-spin 0.7s linear infinite;
+}
+@keyframes conv-spin { to { transform: rotate(360deg); } }
