@@ -343,6 +343,9 @@ async function doLogin() {
     btn.disabled = false;
     btn.textContent = "Войти";
     if (e.forbidden) showLogin("Неверный ключ доступа.");
+    // TypeError = соединение не установилось. Чаще всего виноват VPN: маршрут
+    // до сервера через зарубежный выход не проходит, а ключ тут ни при чём.
+    else if (e instanceof TypeError) showLogin("Сервер не отвечает. Если включён VPN — отключите его и войдите снова.");
     else showLogin("Не удалось подключиться к серверу.");
   }
 }
@@ -1656,7 +1659,7 @@ async function restoreSession() {
     await afterWelcome();
   } catch (e) {
     clearTimeout(timer);
-    showLogin("Не удалось подключиться к серверу. Проверьте интернет.");
+    showLogin("Сервер не отвечает. Проверьте интернет, а если включён VPN — отключите его.");
   }
 }
 
