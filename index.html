@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=32" />
+  <link rel="stylesheet" href="styles.css?v=34" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -130,9 +130,13 @@
         <button type="button" class="scope-btn is-active" data-scope="all" role="tab" aria-selected="true">Все</button>
         <button type="button" class="scope-btn" data-scope="mine" role="tab" aria-selected="false">Мои</button>
       </div>
+      <div class="side-scope" id="eduJump">
+        <button type="button" class="scope-btn" data-view="education">Shurov_education</button>
+      </div>
       <div class="side-scope side-view-tabs" id="appTabs" role="tablist" aria-label="Раздел" hidden>
         <button type="button" class="scope-btn" data-view="analytics" role="tab" aria-selected="false">Аналитика</button>
         <button type="button" class="scope-btn is-active" data-view="chats" role="tab" aria-selected="true">Чаты</button>
+        <button type="button" class="scope-btn" data-view="education" role="tab" aria-selected="false">Shurov_education</button>
       </div>
       <div id="chatList" class="chat-list"></div>
     </aside>
@@ -211,6 +215,7 @@
     <div class="dash-tabs" id="dashTabs" role="tablist" aria-label="Раздел">
       <button type="button" class="dash-tab is-active" data-view="analytics" role="tab" aria-selected="true">Аналитика</button>
       <button type="button" class="dash-tab" data-view="chats" role="tab" aria-selected="false">Чаты</button>
+      <button type="button" class="dash-tab" data-view="education" role="tab" aria-selected="false">Shurov_education</button>
     </div>
 
     <div class="dash-periods" id="dashPeriods" role="tablist" aria-label="Период">
@@ -222,14 +227,24 @@
     </div>
 
     <div class="dash-scroll">
-      <section class="dash-section" id="dashRingsSection">
+      <section class="dash-section" id="dashKpiSection">
+        <h2 class="dash-section-title">Сводка</h2>
+        <div id="dashKpis" class="kpi-grid"></div>
+      </section>
+
+      <section class="dash-section" id="dashChannelsSection">
+        <h2 class="dash-section-title">Каналы</h2>
+        <div id="dashChannels" class="channel-grid"></div>
+      </section>
+
+      <section class="dash-section" id="dashRingsSection" hidden>
         <h2 class="dash-section-title" id="dashRingsTitle">Метрики</h2>
         <div id="dashRings" class="dash-rings"></div>
       </section>
 
       <section class="dash-section" id="dashSourcesSection">
-        <h2 class="dash-section-title">Источники лидов</h2>
-        <div id="dashSources" class="dash-sources"></div>
+        <h2 class="dash-section-title">Хвосты</h2>
+        <div id="dashSources" class="tail-grid"></div>
       </section>
 
       <section class="dash-section" id="dashManagersSection">
@@ -241,6 +256,33 @@
         <h2 class="dash-section-title">Завершённые сделки</h2>
         <div id="dashDeals" class="dash-deals"></div>
       </section>
+    </div>
+  </div>
+
+  <div id="eduBoard" class="dashboard edu-board" hidden>
+    <header class="dash-head">
+      <div class="dash-head-l">
+        <div class="dash-brand">Shurov_education</div>
+        <div class="dash-me">Участники курса</div>
+      </div>
+      <div class="dash-actions">
+        <button id="eduRefreshBtn" class="icon-btn" title="Обновить" aria-label="Обновить">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+        <button id="eduLogoutBtn" class="icon-btn" title="Выйти" aria-label="Выйти">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="dash-tabs" role="tablist" aria-label="Раздел">
+      <button type="button" class="dash-tab" data-view="analytics" role="tab" aria-selected="false">Аналитика</button>
+      <button type="button" class="dash-tab" data-view="chats" role="tab" aria-selected="false">Чаты</button>
+      <button type="button" class="dash-tab is-active" data-view="education" role="tab" aria-selected="true">Shurov_education</button>
+    </div>
+    <div class="dash-scroll">
+      <p id="eduHint" class="edu-hint" hidden></p>
+      <div id="eduList" class="edu-list"></div>
+      <article id="eduDetail" class="edu-detail" hidden></article>
     </div>
   </div>
 
@@ -310,6 +352,6 @@
   </div>
 
   <script src="config.js?v=26"></script>
-  <script src="app.js?v=34"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

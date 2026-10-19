@@ -223,6 +223,11 @@ function resolveVapidPublicKey() {
 }
 
 /* ── Вход / выход ────────────────────────────────────────────────────── */
+function hideEduBoard() {
+  const edu = $("eduBoard");
+  if (edu) edu.hidden = true;
+}
+
 function showBooting() {
   // Сплэш при восстановлении сессии: заголовок + спиннер вместо мелькающей формы.
   stopPolling();
@@ -230,6 +235,7 @@ function showBooting() {
   $("app").hidden = true;
   const dash = $("dashboard");
   if (dash) dash.hidden = true;
+  hideEduBoard();
   $("login").hidden = false;
   $("login").classList.remove("is-welcome", "is-leaving", "is-push");
   const card = $("loginCard");
@@ -252,6 +258,7 @@ function showLogin(msg) {
   $("app").hidden = true;
   const dash = $("dashboard");
   if (dash) dash.hidden = true;
+  hideEduBoard();
   $("login").hidden = false;
   $("login").classList.remove("is-welcome", "is-leaving", "is-push");
   const card = $("loginCard");
@@ -278,11 +285,25 @@ function firstName(full) {
   return n.split(/\s+/)[0];
 }
 
+function enterAfterAuth() {
+  const hash = (location.hash || "").replace(/^#/, "");
+  if (hash === "education") {
+    enterEducation();
+    return;
+  }
+  if (hash === "chats") {
+    enterApp();
+    syncViewTabs("chats");
+    return;
+  }
+  if (isDashboardRole(state.role)) enterDashboard();
+  else enterApp();
+}
+
 function leaveLoginAndEnter() {
   $("login").classList.add("is-leaving");
   window.setTimeout(() => {
-    if (isDashboardRole(state.role)) enterDashboard();
-    else enterApp();
+    enterAfterAuth();
   }, 420);
 }
 
@@ -385,6 +406,7 @@ function enterApp() {
   $("login").hidden = true;
   const dash = $("dashboard");
   if (dash) dash.hidden = true;
+  hideEduBoard();
   $("app").hidden = false;
   document.body.classList.remove("dash-mode");
   document.body.classList.add("app-mode");
@@ -395,6 +417,8 @@ function enterApp() {
   const tabs = $("appTabs");
   if (scope) scope.hidden = state.readOnly;
   if (tabs) tabs.hidden = !state.readOnly;
+  const jump = $("eduJump");
+  if (jump) jump.hidden = state.readOnly;
   const profileBtn = $("profileBtn");
   if (profileBtn) profileBtn.hidden = state.readOnly;
   if (state.readOnly) state.scope = "all";
@@ -407,6 +431,7 @@ function enterApp() {
 function enterDashboard() {
   $("login").hidden = true;
   $("app").hidden = true;
+  hideEduBoard();
   const dash = $("dashboard");
   if (dash) dash.hidden = false;
   document.body.classList.remove("app-mode");
@@ -439,10 +464,119 @@ function syncViewTabs(view) {
 function setView(view) {
   if (view === "chats") {
     stopDashPolling();
+    hideEduBoard();
     enterApp();
     syncViewTabs("chats");
+  } else if (view === "education") {
+    enterEducation();
   } else {
+    hideEduBoard();
     enterDashboard();
+  }
+}
+
+function enterEducation() {
+  $("login").hidden = true;
+  $("app").hidden = true;
+  const dash = $("dashboard");
+  if (dash) dash.hidden = true;
+  const edu = $("eduBoard");
+  if (edu) edu.hidden = false;
+  document.body.classList.remove("app-mode");
+  document.body.classList.add("dash-mode");
+  stopPolling();
+  stopDashPolling();
+  location.hash = "education";
+  syncViewTabs("education");
+  loadEducation();
+}
+
+async function loadEducation() {
+  const list = $("eduList");
+  const hint = $("eduHint");
+  const detail = $("eduDetail");
+  if (detail) detail.hidden = true;
+  if (list) list.innerHTML = `<div class="edu-hint">Загрузка…</div>`;
+  try {
+    const data = await api("/admin/api/education/people");
+    const people = (data && data.people) || [];
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = data && data.keysConfigured
+        ? people.length ? "Анкеты, прогресс и устройства участников курса." : "Ключи заданы. Пока никто не входил в кабинет."
+        : "В Variables сервера задайте EDU_KEYS=Имя:ключ,Имя:ключ и перезапустите приложение.";
+    }
+    if (!list) return;
+    if (!people.length) {
+      list.innerHTML = "";
+      return;
+    }
+    list.innerHTML = people.map((p) => `
+      <button type="button" class="edu-card" data-edu-id="${p.id}">
+        <b>${esc(p.name || "Участник")}</b>
+        <span>Прогресс: ${p.progressDone || 0} шагов · анкета ${p.surveyDone ? "есть" : "нет"} · сертификат ${p.certSaved ? "сохранён" : "нет"} · ${p.kiraCount || 0} реплик Киры</span>
+        <span>${esc(p.request || "Запрос ещё не заполнен")}</span>
+        <span>${esc(p.updatedAt ? "Обновлено " + String(p.updatedAt).replace("T", " ").slice(0, 16) : "")}</span>
+      </button>`).join("");
+    list.querySelectorAll("[data-edu-id]").forEach((btn) => {
+      btn.onclick = () => openEducationPerson(btn.dataset.eduId);
+    });
+  } catch (e) {
+    if (list) list.innerHTML = `<div class="edu-hint">Не удалось загрузить участников.</div>`;
+  }
+}
+
+function eduChatHtml(pack) {
+  const data = pack && typeof pack === "object" ? pack : {};
+  const blocks = [];
+  if (Array.isArray(data.main) && data.main.length) {
+    blocks.push({ title: "Кира — общий чат", msgs: data.main });
+  }
+  Object.entries(data.lessons || {}).forEach(([id, msgs]) => {
+    if (Array.isArray(msgs) && msgs.length) {
+      blocks.push({ title: "Практика / урок " + id, msgs });
+    }
+  });
+  if (!blocks.length) return '<div class="edu-thread"><p>Диалога с Кирой ещё нет.</p></div>';
+  return blocks.map((block) => `
+    <div class="edu-thread">
+      <h4>${esc(block.title)}</h4>
+      ${block.msgs.filter((m) => m && m.text).map((m) => `
+        <div class="edu-msg">
+          <b>${m.me ? "Участник" : "Кира"}</b>
+          ${esc(m.text)}
+        </div>`).join("")}
+    </div>`).join("");
+}
+
+async function openEducationPerson(id) {
+  const detail = $("eduDetail");
+  if (!detail) return;
+  detail.hidden = false;
+  detail.innerHTML = `<p>Загрузка карточки…</p>`;
+  try {
+    const data = await api("/admin/api/education/people/" + id);
+    const p = (data && data.person) || {};
+    const answers = (((p.survey || {})["m0-l3"] || {}).answers) || {};
+    const homework = p.homework && typeof p.homework === "object" ? p.homework : {};
+    const hwLines = Object.entries(homework).map(([id, item]) => {
+      const text = item && typeof item === "object" ? (item.text || item.body || "") : String(item || "");
+      return text ? `<p><b>ДЗ ${esc(id)}</b><br>${esc(text)}</p>` : "";
+    }).join("");
+    const cert = p.cert || {};
+    const chatHtml = eduChatHtml(p.kira);
+    detail.innerHTML = `
+      <h3>${esc(p.name || "Участник")}</h3>
+      <p>Устройство: ${esc(p.deviceId || "—")}</p>
+      <p>Прогресс: ${p.progressDone || 0} · анкета ${p.surveyDone ? "сохранена" : "нет"} · согласие: ${esc(p.consent || "—")} · реплик: ${p.kiraCount || 0}</p>
+      <p>ФИО / сертификат: ${esc(cert.fio || cert.fullName || cert.name || "—")}</p>
+      <p><b>Ситуация</b><br>${esc(answers.now || "—")}</p>
+      <p><b>Запрос на 4 недели</b><br>${esc(answers.in4weeks || p.request || "—")}</p>
+      ${hwLines || "<p>Домашних заданий пока нет.</p>"}
+      ${chatHtml}`;
+    detail.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    detail.innerHTML = `<p>Не удалось открыть карточку.</p>`;
   }
 }
 
@@ -1234,6 +1368,69 @@ function ringPct(ring) {
   return Math.max(0, Math.min(1, (ring.value || 0) / max));
 }
 
+function fmtNum(n) {
+  if (n == null || n === "") return "0";
+  return String(n).replace(".", ",");
+}
+
+function renderDashKpis(data) {
+  const box = $("dashKpis");
+  const section = $("dashKpiSection");
+  if (!box) return;
+  const k = data.kpis;
+  if (!k) {
+    if (section) section.hidden = true;
+    return;
+  }
+  if (section) section.hidden = false;
+  const cards = [
+    ["Новые", k.n, "человек за период"],
+    ["Начали диалог", k.active, (k.active_pct || 0) + "% от новых"],
+    ["Глубокие", k.deep, "3+ своих сообщения"],
+    ["Номера", k.phones, "оставили телефон"],
+    ["Средний диалог", fmtNum(k.avg_dialog), "сообщений у тех, кто писал"],
+  ];
+  box.innerHTML = cards.map(([label, value, note]) => `
+    <article class="kpi-card">
+      <div class="kpi-value">${esc(fmtNum(value))}</div>
+      <div class="kpi-label">${esc(label)}</div>
+      <div class="kpi-note">${esc(note)}</div>
+    </article>`).join("");
+}
+
+function renderDashChannels(data) {
+  const box = $("dashChannels");
+  const section = $("dashChannelsSection");
+  if (!box) return;
+  const ch = data.channels;
+  if (!ch) {
+    if (section) section.hidden = true;
+    return;
+  }
+  if (section) section.hidden = false;
+  const blocks = [
+    ["Telegram", ch.telegram, "tg"],
+    ["Сайт", ch.web, "web"],
+  ];
+  box.innerHTML = blocks.map(([title, row, kind]) => {
+    const r = row || {};
+    return `
+      <article class="channel-card is-${kind}">
+        <div class="channel-top">
+          <h3>${title}</h3>
+          <span>${r.n || 0} новых</span>
+        </div>
+        <div class="channel-stats">
+          <div><b>${r.active || 0}</b><span>написали</span></div>
+          <div><b>${r.deep || 0}</b><span>глубокие</span></div>
+          <div><b>${r.phones || 0}</b><span>номера</span></div>
+          <div><b>${esc(fmtNum(r.avg_dialog || 0))}</b><span>ср. диалог</span></div>
+        </div>
+        <div class="channel-bar"><i style="width:${Math.max(0, Math.min(100, r.active_pct || 0))}%"></i></div>
+      </article>`;
+  }).join("");
+}
+
 function renderDashRings(data) {
   const box = $("dashRings");
   if (!box) return;
@@ -1274,7 +1471,8 @@ function renderDashSources(data) {
   const box = $("dashSources");
   const section = $("dashSourcesSection");
   if (!box) return;
-  const sources = data.sources || [];
+  const sources = (data.tails && data.tails.length) ? data.tails : (data.sources || []);
+  const asTails = !!(data.tails && data.tails.length);
   if (section) {
     section.classList.toggle("is-emphasized", state.role === "marketing");
   }
@@ -1282,6 +1480,31 @@ function renderDashSources(data) {
     box.innerHTML = '<div class="dash-empty">Нет данных за период</div>';
     return;
   }
+  if (asTails) {
+    box.className = "tail-grid";
+    box.innerHTML = sources.map((s) => {
+      const kind = s.channel === "telegram" ? "tg" : (s.channel === "web" ? "web" : "mix");
+      return `
+        <article class="tail-card is-${kind}">
+          <div class="tail-top">
+            <b>${esc(s.tail || "без хвоста")}</b>
+            <span>${kind === "tg" ? "TG" : kind === "web" ? "WEB" : "MIX"}</span>
+          </div>
+          <div class="tail-nums">
+            <div><span>Люди</span><b>${s.n || 0}</b></div>
+            <div><span>Диалоги</span><b>${s.active || 0}</b></div>
+            <div><span>Номера</span><b>${s.phones || 0}</b></div>
+          </div>
+          <div class="tail-foot">
+            <span>${s.active_pct || 0}% написали</span>
+            <span>ср. ${esc(fmtNum(s.avg_dialog || 0))}</span>
+            <span>${s.share || 0}%</span>
+          </div>
+        </article>`;
+    }).join("");
+    return;
+  }
+  box.className = "dash-sources";
   const max = Math.max(...sources.map((s) => s.count || 0), 1);
   box.innerHTML = sources.map((s, i) => {
     const w = Math.max(4, Math.round(((s.count || 0) / max) * 100));
@@ -1305,6 +1528,7 @@ function renderDashManagers(data) {
   if (!box) return;
   const managers = data.managers || [];
   if (section) {
+    section.hidden = state.role === "marketing";
     section.classList.toggle("is-emphasized", state.role === "head");
     if (state.role === "head") section.classList.add("is-first-priority");
     else section.classList.remove("is-first-priority");
@@ -1375,6 +1599,8 @@ async function loadDashboard() {
   try {
     const data = await api("/admin/api/stats?period=" + encodeURIComponent(state.statsPeriod));
     state.stats = data;
+    renderDashKpis(data);
+    renderDashChannels(data);
     renderDashRings(data);
     renderDashSources(data);
     renderDashManagers(data);
@@ -1389,7 +1615,7 @@ async function loadDashboard() {
   } catch (e) {
     if (e.forbidden) logout();
     else {
-      const rings = $("dashRings");
+      const rings = $("dashKpis") || $("dashRings");
       if (rings) rings.innerHTML = '<div class="dash-empty">Не удалось загрузить статистику</div>';
     }
   }
@@ -1550,6 +1776,12 @@ function bindEvents() {
   on("loginToken", "keydown", (e) => { if (e.key === "Enter") doLogin(); });
   on("logoutBtn", "click", logout);
   on("dashLogoutBtn", "click", logout);
+  on("eduLogoutBtn", "click", logout);
+  on("eduRefreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadEducation(); });
+  on("eduJump", "click", (e) => {
+    const btn = e.target.closest("[data-view]");
+    if (btn) setView(btn.dataset.view);
+  });
   on("dashRefreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadDashboard(); });
   on("refreshBtn", "click", (e) => { spinRefresh(e.currentTarget); loadList(); loadConversation(false, true); });
   on("profileBtn", "click", openProfile);
@@ -1616,7 +1848,7 @@ function bindEvents() {
 function registerPWA() {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js?v=23").catch(() => {});
+    navigator.serviceWorker.register("sw.js?v=30").catch(() => {});
   });
 }
 
