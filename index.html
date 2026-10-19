@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=34" />
+  <link rel="stylesheet" href="styles.css?v=35" />
 </head>
 <body>
   <div class="mesh-bg" aria-hidden="true"></div>
@@ -130,13 +130,9 @@
         <button type="button" class="scope-btn is-active" data-scope="all" role="tab" aria-selected="true">Все</button>
         <button type="button" class="scope-btn" data-scope="mine" role="tab" aria-selected="false">Мои</button>
       </div>
-      <div class="side-scope" id="eduJump">
-        <button type="button" class="scope-btn" data-view="education">Shurov_education</button>
-      </div>
       <div class="side-scope side-view-tabs" id="appTabs" role="tablist" aria-label="Раздел" hidden>
         <button type="button" class="scope-btn" data-view="analytics" role="tab" aria-selected="false">Аналитика</button>
         <button type="button" class="scope-btn is-active" data-view="chats" role="tab" aria-selected="true">Чаты</button>
-        <button type="button" class="scope-btn" data-view="education" role="tab" aria-selected="false">Shurov_education</button>
       </div>
       <div id="chatList" class="chat-list"></div>
     </aside>
@@ -214,8 +210,7 @@
 
     <div class="dash-tabs" id="dashTabs" role="tablist" aria-label="Раздел">
       <button type="button" class="dash-tab is-active" data-view="analytics" role="tab" aria-selected="true">Аналитика</button>
-      <button type="button" class="dash-tab" data-view="chats" role="tab" aria-selected="false">Чаты</button>
-      <button type="button" class="dash-tab" data-view="education" role="tab" aria-selected="false">Shurov_education</button>
+        <button type="button" class="dash-tab" data-view="chats" role="tab" aria-selected="false">Чаты</button>
     </div>
 
     <div class="dash-periods" id="dashPeriods" role="tablist" aria-label="Период">
@@ -352,6 +347,6 @@
   </div>
 
   <script src="config.js?v=26"></script>
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

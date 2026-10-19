@@ -287,10 +287,6 @@ function firstName(full) {
 
 function enterAfterAuth() {
   const hash = (location.hash || "").replace(/^#/, "");
-  if (hash === "education") {
-    enterEducation();
-    return;
-  }
   if (hash === "chats") {
     enterApp();
     syncViewTabs("chats");
@@ -462,6 +458,7 @@ function syncViewTabs(view) {
 }
 
 function setView(view) {
+  if (view === "education") view = "analytics";
   if (view === "chats") {
     stopDashPolling();
     hideEduBoard();
